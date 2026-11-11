@@ -29,7 +29,9 @@ return Application::configure(basePath: dirname(__DIR__))
             'event.visitation' => \App\Http\Middleware\EnsureEventVisitation::class,
         ]);
         
-        // No custom CSRF exceptions required (WhatsApp webhook removed)
+        // Layar Pelanggan tablet: login-free, identified by the secret token in the URL; a page left on for days
+        // would otherwise hit 419 once its session expires
+        $middleware->validateCsrfTokens(except: ['layar-pelanggan/*']);
     })
     ->withExceptions(function (Exceptions $exceptions) {
         // Login page left open until the session/CSRF token expired: show the form again instead of a 419 page

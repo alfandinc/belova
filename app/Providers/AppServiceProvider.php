@@ -39,6 +39,13 @@ class AppServiceProvider extends ServiceProvider
 
         View::composer('erm.rawatjalans.partials.modal-daftar-kunjungan', DaftarKunjunganModalComposer::class);
 
+        // Layar Pelanggan tablet: counted per display token (a plain throttle:x,y shares one per-IP counter
+        // across routes, so the tablet's polling would use up the survey's allowance)
+        \Illuminate\Support\Facades\RateLimiter::for('layar-pelanggan-state', fn ($request) =>
+            \Illuminate\Cache\RateLimiting\Limit::perMinute(120)->by('lp-state:' . $request->route('token')));
+        \Illuminate\Support\Facades\RateLimiter::for('layar-pelanggan-survey', fn ($request) =>
+            \Illuminate\Cache\RateLimiting\Limit::perMinute(20)->by('lp-survey:' . $request->route('token')));
+
         // Kos BCL: deleting, refunding, cancelling and correcting money records needs a supervisor.
         \Illuminate\Support\Facades\Gate::define('bcl-supervise', function ($user) {
             return $user->hasRole('Admin') || $user->checkPermissionTo('bcl.supervisor');

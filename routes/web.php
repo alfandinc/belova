@@ -1416,6 +1416,34 @@ Route::prefix('workdoc/akreditasi')->middleware('role:Hrd|Manager|Head Manager|E
     Route::delete('/document/{document}', [AkreditasiController::class, 'destroyDocument'])->name('akreditasi.document.destroy');
 });
 
+// Layar Pelanggan: tablet facing the patient at the kasir desk. Login-free, the token is the key (CSRF-exempt in bootstrap/app.php).
+Route::prefix('layar-pelanggan/{token}')->where(['token' => '[A-Za-z0-9]{20,64}'])->group(function () {
+    Route::get('/', [\App\Http\Controllers\LayarPelangganDisplayController::class, 'show'])->name('layar-pelanggan.display');
+    Route::get('/state', [\App\Http\Controllers\LayarPelangganDisplayController::class, 'state'])->middleware('throttle:layar-pelanggan-state')->name('layar-pelanggan.state');
+    Route::post('/survey', [\App\Http\Controllers\LayarPelangganDisplayController::class, 'survey'])->middleware('throttle:layar-pelanggan-survey')->name('layar-pelanggan.survey');
+});
+
+Route::prefix('finance')->group(function () {
+    // billing page panel: push the bill / survey to the patient's screen
+    Route::middleware('role:Admin|Kasir|Finance')->group(function () {
+        Route::get('/layar-pelanggan/kasir-list', [\App\Http\Controllers\Finance\LayarPelangganController::class, 'kasirList'])->name('finance.layar-pelanggan.kasir-list');
+        Route::post('/layar-pelanggan/{layar}/push', [\App\Http\Controllers\Finance\LayarPelangganController::class, 'push'])->whereNumber('layar')->name('finance.layar-pelanggan.push');
+    });
+    // admin: manage the tablets
+    Route::middleware('role:Admin')->group(function () {
+        Route::get('/layar-pelanggan', [\App\Http\Controllers\Finance\LayarPelangganController::class, 'index'])->name('finance.layar-pelanggan.index');
+        Route::post('/layar-pelanggan', [\App\Http\Controllers\Finance\LayarPelangganController::class, 'store'])->name('finance.layar-pelanggan.store');
+        Route::put('/layar-pelanggan/{layar}', [\App\Http\Controllers\Finance\LayarPelangganController::class, 'update'])->whereNumber('layar')->name('finance.layar-pelanggan.update');
+        Route::post('/layar-pelanggan/{layar}/regenerate', [\App\Http\Controllers\Finance\LayarPelangganController::class, 'regenerateToken'])->whereNumber('layar')->name('finance.layar-pelanggan.regenerate');
+        Route::delete('/layar-pelanggan/{layar}', [\App\Http\Controllers\Finance\LayarPelangganController::class, 'destroy'])->whereNumber('layar')->name('finance.layar-pelanggan.destroy');
+    });
+    // survey report
+    Route::middleware('role:Admin|Finance|Kasir|Manager|Head Manager|Ceo|Marketing')->group(function () {
+        Route::get('/kepuasan-pasien', [\App\Http\Controllers\Finance\KepuasanPasienController::class, 'index'])->name('finance.kepuasan-pasien.index');
+        Route::get('/kepuasan-pasien/summary', [\App\Http\Controllers\Finance\KepuasanPasienController::class, 'summary'])->name('finance.kepuasan-pasien.summary');
+        Route::get('/kepuasan-pasien/data', [\App\Http\Controllers\Finance\KepuasanPasienController::class, 'data'])->name('finance.kepuasan-pasien.data');
+    });
+});
 
 Route::prefix('finance')->middleware('role:Kasir|Admin|Farmasi|Finance|Employee|Manager|Head Manager|Hrd|Marketing')->group(function () {
         Route::get('/billing', [BillingController::class, 'index'])->name('finance.billing.index');

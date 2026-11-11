@@ -888,6 +888,7 @@
                                 <span id="paymentInfoKasir" class="text-right ml-2"></span>
                             </div>
                         </div>
+                        @include('finance.billing.partials.layar-pelanggan-panel')
                         {{--<button id="saveAllChangesBtn" class="btn btn-outline-secondary btn-block mt-2">
                             <i class="fas fa-save mr-1"></i> Simpan Billing
                         </button>--}}
@@ -938,6 +939,7 @@
 
 @section('scripts')
     @include('finance.billing.partials.stock-info-modal-loader')
+    @include('finance.billing.partials.layar-pelanggan-script')
     <script>
         // Embed mode: this page is shown inside the billing index modal (iframe, ?embed=1)
         window.billingEmbed = {{ request()->boolean('embed') ? 'true' : 'false' }};
@@ -3219,6 +3221,36 @@
             } catch (e) {
                 // ignore
             }
+
+            // Layar Pelanggan: mirror the bill on the patient's tablet
+            try {
+                if (window.layarPelanggan) {
+                    window.layarPelanggan.onTotals({
+                        items: billingData.filter(function (it) { return it && !it.deleted; }).map(function (it) {
+                            const d = it.diskon;
+                            const isNum = d !== null && d !== undefined && d !== '' && !isNaN(Number(d));
+                            const diskon = isNum ? formatDiskonDisplay(d, normalizeDiskonType(d, it.diskon_type)) : String(d || '-');
+                            return {
+                                nama: $('<div>').html(String(it.nama_item || '-')).text(),
+                                qty: parseNumberFlexible(it.qty || 1),
+                                harga: parseNumberFlexible(it.jumlah_raw || 0),
+                                diskon: diskon === '-' ? '' : diskon,
+                                total: parseFloat(it.harga_akhir_raw) || 0
+                            };
+                        }),
+                        totals: {
+                            subtotal: subtotal,
+                            diskon: discountAmount,
+                            pajak: taxAmount,
+                            admin: adminFee,
+                            ongkir: shippingFee,
+                            grand_total: grandTotalInt
+                        }
+                    });
+                }
+            } catch (e) {
+                // never block billing because of the customer display
+            }
         }
         
         // Event listeners for total calculation inputs
@@ -3828,6 +3860,11 @@ $('#saveAllChangesBtn').on('click', function() {
 
                                 // After payment is processed (including piutang), lock billing edits.
                                 billingLocked = true;
+
+                                // Layar Pelanggan: payment done → satisfaction survey on the patient's tablet
+                                try {
+                                    if (window.layarPelanggan && currentInvoiceId) window.layarPelanggan.afterPayment(currentInvoiceId);
+                                } catch (e) { /* ignore */ }
                                 applyBillingLockUi();
                                 try { reloadBillingTable(null, false); } catch (e) { /* ignore */ }
 

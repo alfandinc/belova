@@ -142,6 +142,9 @@ class MainNavigation
                 ? $this->item('Harga Paket Tindakan', 'tag', $this->route('marketing.harga-tindakan.index'), $this->badge('harga_tindakan_menunggu', 'warning', 'Pengajuan harga paket tindakan menunggu'))
                 : null,
             $this->can('Marketing', 'Admin', 'Finance') ? $this->item('Promo', 'percent', url('/marketing/promo')) : null,
+            $this->can('Admin', 'Finance', 'Kasir', 'Manager', 'Head Manager', 'Ceo', 'Marketing')
+                ? $this->item('Kepuasan Pasien', 'smile', $this->route('finance.kepuasan-pasien.index'))
+                : null,
             $this->item('Buku Menu', 'book', url('/buku-menu')),
         ]);
     }
@@ -396,6 +399,7 @@ class MainNavigation
             $admin ? $this->item('ICD 10', 'hash', $this->route('admin.icd10.index')) : null,
             $admin ? $this->item('Satuan', 'layers', $this->route('erm.satuan.index')) : null,
             $admin ? $this->item('Metode Bayar', 'credit-card', $this->route('finance.metode-bayar.index')) : null,
+            $admin ? $this->item('Layar Pelanggan', 'monitor', $this->route('finance.layar-pelanggan.index')) : null,
             $admin ? $this->item('Referral Marketing', 'share-2', $this->route('admin.referral_mapping.index')) : null,
             $this->heading('Pengaturan'),
             $dashboardWidgets ? $this->item('Widget Dashboard', 'layout', $this->route('dashboard.widgets.index')) : null,
