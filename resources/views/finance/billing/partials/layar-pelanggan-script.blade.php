@@ -161,19 +161,6 @@ window.layarPelanggan = (function () {
         });
     }
 
-    function clearScreen() {
-        if (!selectedId) return;
-        clearTimeout(pushTimer);
-        sharing = false;
-        post({ mode: 'idle' }).then(function () {
-            onScreen = false;
-            lastSentJson = '';
-            $('#lpForceBtn').hide();
-            setSharingUi();
-            status('Layar pasien dikosongkan. Nyalakan "Bagikan ke pasien" untuk menampilkan lagi.');
-        }).catch(function () { status('Gagal mengosongkan layar.', 'text-danger'); });
-    }
-
     $(function () {
         if (!$('#layarPelangganPanel').length) return;
         setSharingUi();
@@ -193,7 +180,6 @@ window.layarPelanggan = (function () {
             setSharingUi();
             pushBilling(true);
         });
-        $('#lpClearBtn').on('click', clearScreen);
         $('#lpSurveyBtn').on('click', function () {
             pushSurvey(window.oldInvoice && window.oldInvoice.id);
         });

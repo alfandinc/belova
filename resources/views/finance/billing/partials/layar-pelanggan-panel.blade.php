@@ -15,6 +15,7 @@
     <div id="lpPausedNote" class="alert alert-warning py-1 px-2 mb-2" style="display:none;">
         <i class="fas fa-eye-slash mr-1"></i>Tidak dibagikan. Pasien melihat layar "Mohon tunggu". Perubahan harga tidak terlihat.
     </div>
+    {{-- only shown when needed: survey of the previous patient still on screen / paid bill without survey --}}
     <div class="d-flex" style="gap:.35rem;">
         <button type="button" id="lpForceBtn" class="btn btn-sm btn-outline-primary flex-fill" title="Tampilkan billing ini walau survei pasien sebelumnya belum diisi" style="display:none;">
             <i class="fas fa-desktop mr-1"></i>Timpa Survei
@@ -22,11 +23,8 @@
         <button type="button" id="lpSurveyBtn" class="btn btn-sm btn-outline-success flex-fill" title="Tampilkan survei kepuasan di layar pasien" style="display:none;">
             <i class="far fa-smile mr-1"></i>Survei
         </button>
-        <button type="button" id="lpClearBtn" class="btn btn-sm btn-outline-secondary flex-fill" title="Kembalikan layar pasien ke tampilan awal (logo)">
-            <i class="fas fa-eraser mr-1"></i>Kosongkan
-        </button>
     </div>
-    <div id="lpStatus" class="text-muted mt-2" style="min-height:1.2em;"></div>
+    <div id="lpStatus" class="text-muted mt-1" style="min-height:1.2em;"></div>
 </div>
 <div id="layarPelangganEmpty" class="mt-3 pt-3 border-top small text-muted" style="display:none;">
     <i class="fas fa-tv mr-1"></i>Belum ada layar pasien.
