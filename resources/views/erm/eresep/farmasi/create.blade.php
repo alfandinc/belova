@@ -146,6 +146,9 @@
             </div>
         @endif
 
+        {{-- Stok this resep still lacks in the resep gudang (filled by refreshCekStok): known before submit --}}
+        <div id="cek-stok-panel" class="eresep-stokcek d-none" role="status"></div>
+
         {{-- Tools: cetak, riwayat, paket --}}
         <div class="eresep-toolbar">
             <span class="eresep-toolbar-label">Cetak</span>
@@ -384,6 +387,7 @@
 @section('scripts')
 @include('erm.partials.aturan-pakai-builder')
 @include('erm.partials.obat-alternatif')
+@include('erm.partials.stok-gudang-lain')
 <script src="{{ asset('js/erm-pdf-preview.js') }}?v={{ filemtime(public_path('js/erm-pdf-preview.js')) }}"></script>
 
 <script>
@@ -475,7 +479,9 @@
             harga: item.harga_nonfornas,
             harga_nonfornas: item.harga_nonfornas,
             stok: item.stok,
-            stok_gudang: typeof item.stok_gudang !== 'undefined' ? item.stok_gudang : item.stok
+            stok_gudang: typeof item.stok_gudang !== 'undefined' ? item.stok_gudang : item.stok,
+            stok_lain: item.stok_lain,
+            stok_lain_ed: item.stok_lain_ed
         };
     }
 
@@ -485,7 +491,8 @@
         const harga = Number(item.harga_nonfornas);
         const hargaText = Number.isFinite(harga) && harga > 0 ? 'Rp ' + new Intl.NumberFormat('id-ID').format(harga) : 'Harga jual belum diatur';
         const stok = parseInt(item.stok_gudang !== undefined ? item.stok_gudang : item.stok, 10) || 0;
-        return `${escapeHtml(item.text)} - ${hargaText} · Stok ${stok}`;
+        // Resep gudang stok, plus what the other gudangs still hold ("+N gudang lain")
+        return `${escapeHtml(item.text)} - ${hargaText}${StokLain.optionText(stok, item.stok_lain, item.stok_lain_ed)}`;
     }
 
     function initWadahSelect($select) {
@@ -612,6 +619,62 @@
 
         return hasUnsaved;
     }
+
+    // Stok this visit's resep still lacks in the resep gudang, shown as soon as the page opens and after every
+    // change (the same check the submit does), so the transfer can be requested before the patient waits at submit.
+    let cekStokTimer = null;
+    function refreshCekStok() {
+        const visitationId = $('#visitation_id').val();
+        const $panel = $('#cek-stok-panel');
+        if (!visitationId || !$panel.length) return;
+        $.ajax({ url: "{{ route('erm.eresepfarmasi.cek-stok', ':id') }}".replace(':id', visitationId), global: false })
+            .done(function (res) {
+                const list = rows => '<ul>' + rows.map(r => '<li>' + escapeHtml(r) + '</li>').join('') + '</ul>';
+                const mutasi = res.mutasi || [], kosong = res.kosong || [], ed = res.ed || [];
+                if (!mutasi.length && !kosong.length && !ed.length) {
+                    return $panel.addClass('d-none').empty();
+                }
+                const sumber = res.sumber === 'dokter' ? ' <span class="eresep-stokcek-sumber">(dari resep dokter, belum disalin ke farmasi)</span>' : '';
+                let html = '';
+                if (mutasi.length) {
+                    html += `<div class="eresep-stokcek-title"><i class="fas fa-truck"></i>Perlu transfer stok ke ${escapeHtml(res.gudang_resep || 'gudang resep')} sebelum submit${sumber}</div>` + list(mutasi);
+                }
+                if (kosong.length) {
+                    html += `<div class="eresep-stokcek-title is-kosong"><i class="fas fa-exclamation-triangle"></i>Stok tidak cukup di semua gudang${mutasi.length ? '' : sumber}</div>` + list(kosong);
+                }
+                if (ed.length) {
+                    html += `<div class="eresep-stokcek-title"><i class="fas fa-hourglass-end"></i>Akan memakai batch yang sudah ED</div>` + list(ed);
+                }
+                html += '<div class="eresep-stokcek-actions">'
+                    + (mutasi.length ? `<a href="${escapeAttr(res.url_mutasi)}" target="_blank" class="btn btn-sm btn-erm-accent"><i class="fas fa-truck mr-1"></i>Buka Transfer Antar Gudang</a>` : '')
+                    + '<button type="button" class="btn btn-sm btn-erm-soft" id="cek-stok-ulang"><i class="fas fa-sync-alt mr-1"></i>Cek ulang stok</button>'
+                    + '</div>';
+                $panel.toggleClass('is-kosong', !mutasi.length && kosong.length > 0).html(html).removeClass('d-none');
+            });
+    }
+    function scheduleCekStok() {
+        clearTimeout(cekStokTimer);
+        cekStokTimer = setTimeout(refreshCekStok, 400);
+    }
+    $(function () {
+        refreshCekStok();
+        $(document).on('click', '#cek-stok-ulang', function () {
+            refreshCekStok();
+            if (window.StokLain) StokLain.refresh();
+        });
+        // Any change to the resep (add / edit / delete / copy / paket) can change what is short
+        $(document).ajaxSuccess(function (event, xhr, settings) {
+            const method = String(settings.type || 'GET').toUpperCase();
+            if (method !== 'GET' && /resepfarmasi|eresepfarmasi|paket-racikan/.test(settings.url || '')) scheduleCekStok();
+        });
+        // Coming back from the transfer tab: the stok may have moved (at most one check per 15 seconds)
+        let lastFocusCek = Date.now();
+        $(window).on('focus', function () {
+            if (Date.now() - lastFocusCek < 15000) return;
+            lastFocusCek = Date.now();
+            scheduleCekStok();
+        });
+    });
 
     function getSubmitBlockReason() {
         if (pendingResepMutationCount > 0) {
@@ -887,7 +950,19 @@
 
             // If stok info is available, block adding when requested jumlah > stok
             if (stokAvailable !== null && !isNaN(stokAvailable) && jumlah > stokAvailable) {
-                return Swal.fire('Stok Tidak Cukup', `Jumlah yang diminta (${jumlah}) lebih besar dari stok tersedia (${stokAvailable}). Silakan ubah jumlah atau periksa stok.`, 'error');
+                // Enough in another gudang: say so, the stok has to be transferred to the resep gudang first
+                const stokLain = Number(selectedData.stok_lain) || 0;
+                if (stokLain > 0) {
+                    return Swal.fire({
+                        icon: 'error',
+                        title: 'Stok Tidak Cukup di Gudang Resep',
+                        html: `Diminta ${jumlah}, stok gudang resep ${stokAvailable}. Masih ada <strong>${StokLain.format(stokLain)}</strong> di gudang lain: transfer dulu ke gudang resep, lalu tambahkan lagi.`
+                            + `<div class="mt-3"><a href="{{ url('/erm/mutasi-gudang') }}" target="_blank" class="btn btn-sm btn-primary">Buka Transfer Antar Gudang</a></div>`
+                    });
+                }
+                const stokLainEd = Number(selectedData.stok_lain_ed) || 0;
+                return Swal.fire('Stok Tidak Cukup', `Jumlah yang diminta (${jumlah}) lebih besar dari stok tersedia (${stokAvailable}), dan tidak ada stok layak pakai di gudang lain`
+                    + (stokLainEd > 0 ? ` (hanya ${StokLain.format(stokLainEd)} yang sudah ED)` : '') + `. Silakan ubah jumlah atau periksa stok.`, 'error');
             }
 
             // If stok info not available or jumlah <= stokAvailable, proceed normally

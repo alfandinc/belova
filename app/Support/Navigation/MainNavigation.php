@@ -142,9 +142,6 @@ class MainNavigation
                 ? $this->item('Harga Paket Tindakan', 'tag', $this->route('marketing.harga-tindakan.index'), $this->badge('harga_tindakan_menunggu', 'warning', 'Pengajuan harga paket tindakan menunggu'))
                 : null,
             $this->can('Marketing', 'Admin', 'Finance') ? $this->item('Promo', 'percent', url('/marketing/promo')) : null,
-            $this->can('Admin', 'Finance', 'Kasir', 'Manager', 'Head Manager', 'Ceo', 'Marketing')
-                ? $this->item('Kepuasan Pasien', 'smile', $this->route('finance.kepuasan-pasien.index'))
-                : null,
             $this->item('Buku Menu', 'book', url('/buku-menu')),
         ]);
     }
@@ -158,6 +155,7 @@ class MainNavigation
         return $this->module('farmasi-stok', 'Stok', 'archive', [
             $stokMarketing ? $this->item('Manajemen Stok', 'package', url('/erm/stok-gudang')) : null,
             $stokMarketing ? $this->item('Transfer Antar Gudang', 'truck', url('/erm/mutasi-gudang')) : null,
+            $this->can('Farmasi', 'Admin') ? $this->item('Saran Isi Ulang Apotek', 'refresh-cw', url('/erm/isi-ulang-resep')) : null,
             $stokMarketing ? $this->item('Penyesuaian Stok', 'sliders', url('/erm/mutasi-stok')) : null,
             $stok ? $this->item('Stok Opname', 'check-square', url('/erm/stokopname')) : null,
         ]);
@@ -182,19 +180,23 @@ class MainNavigation
 
     // Marketing role pages are split into CRM and Sosmed (Promo sits under Penjualan); all keep the Marketing role check.
 
-    /** Patient / customer relationship pages. */
-    private function crm(): ?array
+    /**
+     * Patient / customer relationship pages. Kepuasan Pasien (survey report from the kasir customer display)
+     * keeps its wider roles, so Kasir / Manager / Head Manager / CEO see CRM with only that item.
+     */
+    private function crm(): array
     {
-        if (!$this->can('Marketing', 'Admin', 'Finance')) {
-            return null;
-        }
+        $marketing = $this->can('Marketing', 'Admin', 'Finance');
 
         return $this->module('crm', 'CRM', 'users', [
             // Pasien data, follow up and birthday greetings are tabs of one page
-            $this->item('Pasien & Follow Up', 'phone-call', url('/marketing/pasien-data')),
-            $this->item('Keluhan Customer', 'message-square', url('/marketing/catatan-keluhan')),
-            $this->item('Kunjungan Instansi', 'map-pin', $this->route('marketing.kunjungan.index')),
-            $this->item('Merchandise', 'shopping-bag', url('/marketing/master-merchandise')),
+            $marketing ? $this->item('Pasien & Follow Up', 'phone-call', url('/marketing/pasien-data')) : null,
+            $marketing ? $this->item('Keluhan Customer', 'message-square', url('/marketing/catatan-keluhan')) : null,
+            $this->can('Admin', 'Finance', 'Kasir', 'Manager', 'Head Manager', 'Ceo', 'Marketing')
+                ? $this->item('Kepuasan Pasien', 'smile', $this->route('finance.kepuasan-pasien.index'))
+                : null,
+            $marketing ? $this->item('Kunjungan Instansi', 'map-pin', $this->route('marketing.kunjungan.index')) : null,
+            $marketing ? $this->item('Merchandise', 'shopping-bag', url('/marketing/master-merchandise')) : null,
         ]);
     }
 

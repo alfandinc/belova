@@ -721,6 +721,12 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::post('/{id}/reject', [MutasiGudangController::class, 'reject'])->name('erm.mutasi-gudang.reject');
     });
 
+    // Saran Isi Ulang Apotek: obat to transfer into the resep gudang, minimum computed from patient usage
+    Route::prefix('isi-ulang-resep')->middleware('role:Admin|Farmasi')->group(function () {
+        Route::get('/', [\App\Http\Controllers\ERM\IsiUlangResepController::class, 'index'])->name('erm.isi-ulang-resep.index');
+        Route::get('/data', [\App\Http\Controllers\ERM\IsiUlangResepController::class, 'data'])->name('erm.isi-ulang-resep.data');
+    });
+
     // Mutasi Stok = stock adjustment document (masuk always waits for approval)
     Route::prefix('mutasi-stok')->middleware('role:Farmasi|Admin|Beautician|Lab|Marketing')->group(function () {
         Route::get('/', [MutasiStokController::class, 'index'])->name('erm.mutasi-stok.index');
@@ -992,6 +998,8 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     // E Resep Dokter
     Route::get('eresep/{visitation_id}/create', [EresepController::class, 'create'])->name('erm.eresep.create');
     Route::get('eresep/{visitation_id}/invoice-lock-status', [EresepController::class, 'invoiceLockStatus'])->name('erm.eresep.invoice-lock-status');
+    // Dokter asks farmasi to transfer obat that are short in the resep gudang but available in another gudang
+    Route::post('eresep/{visitation_id}/minta-transfer-stok', [EresepController::class, 'mintaTransferStok'])->name('erm.eresep.minta-transfer-stok');
     Route::post('/resep/non-racikan', [EresepController::class, 'storeNonRacikan'])->name('resep.nonracikan.store');
     Route::post('/resep/racikan', [EresepController::class, 'storeRacikan'])->name('resep.racikan.store');
     Route::delete('/resep/nonracikan/{id}', [EresepController::class, 'destroyNonRacikan'])->name('resep.nonracikan.destroy');
@@ -1010,6 +1018,8 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::put('/resepfarmasi/racikan/{racikanKe}', [EresepController::class, 'farmasiupdateRacikan'])->name('resepfarmasi.racikan.update');
 
     Route::get('/eresepfarmasi/{visitation_id}/json', [EresepController::class, 'getFarmasiResepJson'])->name('erm.eresepfarmasi.json');
+    // Stok the visit's resep still lacks in the resep gudang (transfer / kosong / ED), shown before submit
+    Route::get('/eresepfarmasi/{visitation_id}/cek-stok', [EresepController::class, 'cekStokResep'])->name('erm.eresepfarmasi.cek-stok');
     Route::post('/eresepfarmasi/{visitation_id}/copy-from-dokter', [EresepController::class, 'copyFromDokter'])->name('erm.eresepfarmasi.copyfromdokter');
 
     Route::post('/eresepfarmasi/{visitation_id}/selesai', [EresepController::class, 'markResepFarmasiSelesai'])->name('erm.eresepfarmasi.selesai');
@@ -2213,6 +2223,8 @@ Route::get('/erm/ic-pendaftaran/{pasien}/pdf', [IcPendaftaranController::class, 
 Route::get('/obat/search', [ObatController::class, 'search'])->name('obat.search');
 // Obat with kandungan in common with a chosen obat (E-Resep recommendations)
 Route::get('/obat/alternatif', [ObatController::class, 'alternatif'])->name('obat.alternatif');
+// Stok of obat in the gudangs other than the resep gudang (E-Resep "+N gudang lain")
+Route::get('/obat/stok-gudang-lain', [ObatController::class, 'stokGudangLain'])->name('obat.stok-gudang-lain');
 // Import CSV to update obat by ID (handled inside ERM route group)
 Route::get('/wadah/search', [EresepController::class, 'search'])->name('wadah.search');
 Route::get('/keluhan-utama/search', [KeluhanUtamaController::class, 'search'])->name('keluhan-utama.search');

@@ -64,6 +64,18 @@
         background: rgba(217, 119, 6, .1); border: 1px solid rgba(217, 119, 6, .35); color: var(--sb-text-strong, #1e2538); font-size: .85rem;
     }
     .eresep-lock i { color: var(--er-mid); margin-top: 3px; }
+    /* Farmasi: stok the resep still lacks in the resep gudang (transfer first / kosong / ED) */
+    .eresep-stokcek {
+        margin-bottom: 14px; padding: 12px 14px; border-radius: 12px; font-size: .85rem; color: var(--sb-text-strong, #1e2538);
+        background: rgba(217, 119, 6, .1); border: 1px solid rgba(217, 119, 6, .35);
+    }
+    .eresep-stokcek.is-kosong { background: rgba(220, 38, 38, .08); border-color: rgba(220, 38, 38, .35); }
+    .eresep-stokcek-title { font-weight: 800; }
+    .eresep-stokcek-title i { margin-right: 6px; color: var(--er-mid); }
+    .eresep-stokcek-title.is-kosong i { color: var(--er-low); }
+    .eresep-stokcek ul { margin: 4px 0 10px 18px; padding: 0; }
+    .eresep-stokcek-sumber { font-weight: 500; color: var(--sb-muted, #8a94ad); }
+    .eresep-stokcek-actions { display: flex; flex-wrap: wrap; gap: 6px; }
     .eresep-empty-racikan { padding: 4px 0 14px; font-size: .85rem; color: var(--sb-muted, #8a94ad); }
 
     /* Tables */

@@ -145,6 +145,16 @@ return [
         'order' => 96,
         'uses_period' => true,
     ],
+    'kepuasan_pasien' => [
+        'name' => 'Kepuasan Pasien',
+        'description' => 'Hasil survei layar pasien di kasir: rata-rata rating, persentase pasien puas, sebaran rating, per klinik, serta keluhan & rating rendah terbaru. Saran: Ceo, Head Manager, Manager, Marketing.',
+        'icon' => 'smile',
+        'class' => Widgets\KepuasanPasienWidget::class,
+        'view' => 'dashboard.custom_widgets.kepuasan_pasien_widget',
+        'span' => 6,
+        'order' => 97,
+        'uses_period' => true,
+    ],
     'kinerja_dokter' => [
         'name' => 'Kinerja Dokter',
         'description' => 'Omset, pasien, dan rata-rata per kunjungan setiap dokter, dengan growth. Saran: Ceo, Head Manager.',

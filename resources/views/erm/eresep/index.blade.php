@@ -288,6 +288,7 @@ $(document).ready(function () {
                         + (data ? '<strong>' + escapeHtml(data) + '</strong>' : '<span class="text-muted">-</span>')
                         + '</div>'
                         + (subLine ? '<small class="font-weight-bold mt-1">' + subLine + '</small>' : '')
+                        + stokKurangBadges(row)
                         + '</div>';
                 }
             },
@@ -812,6 +813,19 @@ $(document).on('click', '.btn-selesai-resep', function (e) {
         });
     });
 });
+
+// Unpaid visits whose resep is short in the resep gudang: "Perlu transfer" = another gudang has it,
+// "Stok kosong" = not enough in all gudangs. Hover shows the obat.
+function stokKurangBadges(row) {
+    var mutasi = parseInt(row.stok_perlu_mutasi, 10) || 0;
+    var kosong = parseInt(row.stok_kosong, 10) || 0;
+    if (!mutasi && !kosong) return '';
+    var title = escapeHtml((row.stok_kurang_detail || []).join('\n'));
+    var html = '<div class="mt-1" title="' + title + '">';
+    if (mutasi) html += '<span class="badge badge-warning mr-1"><i class="fas fa-truck mr-1"></i>Perlu transfer ' + mutasi + ' obat</span>';
+    if (kosong) html += '<span class="badge badge-danger"><i class="fas fa-exclamation-triangle mr-1"></i>Stok kosong ' + kosong + ' obat</span>';
+    return html + '</div>';
+}
 
 function escapeHtml(unsafe) {
     return String(unsafe)

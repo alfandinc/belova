@@ -1198,10 +1198,25 @@ class ObatController extends Controller
         return $query;
     }
 
+    /**
+     * Stok of the given obat outside the resep gudang (gudang ED left out), for the E-Resep stok cells:
+     * { obat_id: { total, ed, gudang: [{ id, nama, stok, stok_ed }] } }, total = usable, ed = expired batches;
+     * obat without stok elsewhere are absent.
+     */
+    public function stokGudangLain(Request $request)
+    {
+        $ids = array_slice((array) $request->input('ids', []), 0, 300);
+
+        return response()->json([
+            'data' => (object) app(\App\Services\ERM\StokResepService::class)->stokGudangLain($ids),
+        ]);
+    }
+
     /** Select2 rows for obat search / alternatif; stok of the resep gudang in one query for all rows. */
     private function obatSearchResults($obats)
     {
-        $gudangId = \App\Models\ERM\GudangMapping::getDefaultGudangId('resep');
+        $stokResep = app(\App\Services\ERM\StokResepService::class);
+        $gudangId = $stokResep->gudangResepId();
         $stokByObat = ($gudangId && $obats->isNotEmpty())
             ? \App\Models\ERM\ObatStokGudang::where('gudang_id', $gudangId)
                 ->whereIn('obat_id', $obats->pluck('id')->all())
@@ -1209,8 +1224,10 @@ class ObatController extends Controller
                 ->selectRaw('obat_id, SUM(stok) as stok_sum')
                 ->pluck('stok_sum', 'obat_id')
             : collect();
+        // Usable stok in the other gudangs: an obat that is empty in the resep gudang may only need a transfer
+        $stokLain = $stokResep->stokGudangLain($obats->pluck('id')->all());
 
-        return $obats->map(function ($obat) use ($stokByObat) {
+        return $obats->map(function ($obat) use ($stokByObat, $stokLain) {
             $zatAktifNames = $obat->zatAktifs->pluck('nama')->map(function($nama) {
                 return ucwords(strtolower($nama));
             })->implode(', ');
@@ -1236,6 +1253,8 @@ class ObatController extends Controller
                 // Use gudang stock as the authoritative 'stok' for frontend checks
                 'stok' => $stokGudang,
                 'stok_gudang' => $stokGudang,
+                'stok_lain' => (float) ($stokLain[$obat->id]['total'] ?? 0),
+                'stok_lain_ed' => (float) ($stokLain[$obat->id]['ed'] ?? 0),
                 'harga_nonfornas' => $obat->harga_nonfornas,
                 'harga_nonfornas_formatted' => $obat->harga_nonfornas !== null
                     ? 'Rp ' . number_format((float) $obat->harga_nonfornas, 0, ',', '.')

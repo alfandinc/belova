@@ -52,6 +52,9 @@
             </div>
         @endif
 
+        {{-- Obat short in the resep gudang but available in another gudang (filled by refreshCekStok): ask farmasi to transfer --}}
+        <div id="cek-stok-panel" class="eresep-stokcek d-none" role="status"></div>
+
         {{-- Tools: riwayat + paket --}}
         <div class="eresep-toolbar">
             <span class="eresep-toolbar-label">Riwayat</span>
@@ -302,6 +305,7 @@
 @section('scripts')
 @include('erm.partials.aturan-pakai-builder')
 @include('erm.partials.obat-alternatif')
+@include('erm.partials.stok-gudang-lain')
 <script>
     let IS_INVOICE_LOCKED = @json($isInvoiceLocked ?? false);
     const INVOICE_PAYMENT_METHOD = @json($invoicePaymentMethod ?? null);
@@ -324,6 +328,59 @@
         stok = parseInt(stok, 10) || 0;
         return stok < 10 ? 'stok-low' : (stok < 100 ? 'stok-mid' : 'stok-ok');
     }
+
+    // Resep rows that are short in the resep gudang: what another gudang can cover (the dokter can ask farmasi to
+    // transfer it now, before the patient reaches the apotek) and what is short everywhere.
+    let cekStokTimer = null;
+    function refreshCekStok() {
+        const visitationId = $('#visitation_id').val();
+        const $panel = $('#cek-stok-panel');
+        if (!visitationId || !$panel.length) return;
+        $.ajax({ url: "{{ route('erm.eresepfarmasi.cek-stok', ':id') }}".replace(':id', visitationId), data: { sumber: 'dokter' }, global: false })
+            .done(function (res) {
+                const list = rows => '<ul>' + rows.map(r => '<li>' + escapeObatMarkup(r) + '</li>').join('') + '</ul>';
+                const mutasi = res.mutasi || [], kosong = res.kosong || [];
+                if (!mutasi.length && !kosong.length) {
+                    return $panel.addClass('d-none').empty();
+                }
+                let html = '';
+                if (mutasi.length) {
+                    html += `<div class="eresep-stokcek-title"><i class="fas fa-truck"></i>Stok ada di gudang lain, belum di ${escapeObatMarkup(res.gudang_resep || 'apotek')}</div>` + list(mutasi)
+                        + '<div class="eresep-stokcek-actions mb-2"><button type="button" class="btn btn-sm btn-erm-accent" id="minta-transfer-stok"><i class="fas fa-bell mr-1"></i>Minta Farmasi Transfer</button></div>';
+                }
+                if (kosong.length) {
+                    html += `<div class="eresep-stokcek-title is-kosong"><i class="fas fa-exclamation-triangle"></i>Stok tidak cukup di semua gudang</div>` + list(kosong);
+                }
+                $panel.toggleClass('is-kosong', !mutasi.length).html(html).removeClass('d-none');
+            });
+    }
+    function scheduleCekStok() {
+        clearTimeout(cekStokTimer);
+        cekStokTimer = setTimeout(refreshCekStok, 400);
+    }
+    $(function () {
+        refreshCekStok();
+        // Any change to the resep (add / edit / delete / copy / paket) can change what is short
+        $(document).ajaxSuccess(function (event, xhr, settings) {
+            const method = String(settings.type || 'GET').toUpperCase();
+            if (method !== 'GET' && /\/resep\/|\/eresep\/|paket-racikan/.test(settings.url || '')) scheduleCekStok();
+        });
+        $(document).on('click', '#minta-transfer-stok', function () {
+            const $btn = $(this).prop('disabled', true);
+            $.ajax({
+                url: "{{ route('erm.eresep.minta-transfer-stok', ':id') }}".replace(':id', $('#visitation_id').val()),
+                method: 'POST',
+                data: { _token: "{{ csrf_token() }}" },
+                global: false
+            }).done(function (res) {
+                Swal.fire({ icon: 'success', title: 'Terkirim', text: res.message, timer: 2200, showConfirmButton: false });
+                $btn.html('<i class="fas fa-check mr-1"></i>Permintaan terkirim');
+            }).fail(function (xhr) {
+                Swal.fire({ icon: 'error', title: 'Gagal', text: ajaxErrorMessage(xhr, 'Gagal mengirim permintaan ke farmasi.') });
+                $btn.prop('disabled', false);
+            });
+        });
+    });
 
     function formatRupiah(value) {
         return 'Rp ' + new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(Number(value) || 0);
@@ -577,6 +634,8 @@
                     satuan_stok: item.satuan_stok,
                     stok: item.stok,
                     stok_gudang: item.stok_gudang,
+                    stok_lain: item.stok_lain,
+                    stok_lain_ed: item.stok_lain_ed,
                     harga_nonfornas: item.harga_nonfornas,
                     harga_nonfornas_formatted: item.harga_nonfornas_formatted || formatHargaNonFornas(item.harga_nonfornas)
                 };
@@ -591,7 +650,8 @@
 
         const secondaryText = item.harga_nonfornas_formatted || formatHargaNonFornas(item.harga_nonfornas);
         const stok = item.stok_gudang !== undefined ? item.stok_gudang : item.stok;
-        const stokText = stok !== undefined ? ` · Stok ${parseInt(stok, 10) || 0}` : '';
+        // Resep gudang stok, plus what the other gudangs still hold ("+N gudang lain")
+        const stokText = stok !== undefined ? StokLain.optionText(stok, item.stok_lain, item.stok_lain_ed) : '';
 
         return `${escapeObatMarkup(item.text)} - ${escapeObatMarkup(secondaryText)}${stokText}`;
     }
@@ -759,12 +819,30 @@
                     var data = e.params.data;
                     var stokSelected = (data.stok_gudang !== undefined ? data.stok_gudang : data.stok);
                     if (stokSelected !== undefined && parseInt(stokSelected) === 0) {
-                        Swal.fire({
-                            icon: 'warning',
-                            title: 'Stok Obat Kosong',
-                            text: 'Obat yang Anda pilih memiliki stok 0. Silakan pilih obat lain atau konfirmasi ke farmasi.',
-                            confirmButtonText: 'OK'
-                        });
+                        // Empty in the resep gudang only: the obat can still be prescribed, farmasi transfers it
+                        var stokLain = Number(data.stok_lain) || 0;
+                        if (stokLain > 0) {
+                            Swal.fire({
+                                icon: 'info',
+                                title: 'Stok Ada di Gudang Lain',
+                                text: 'Stok di apotek 0, tetapi masih ada ' + StokLain.format(stokLain) + ' di gudang lain. Obat tetap bisa diresepkan, farmasi akan memindahkan stoknya.',
+                                confirmButtonText: 'OK'
+                            });
+                        } else if (Number(data.stok_lain_ed) > 0) {
+                            Swal.fire({
+                                icon: 'warning',
+                                title: 'Hanya Ada Stok ED',
+                                text: 'Stok di apotek 0. Di gudang lain hanya ada ' + StokLain.format(data.stok_lain_ed) + ' yang sudah lewat ED, jadi tidak bisa dipakai. Silakan pilih obat lain atau konfirmasi ke farmasi.',
+                                confirmButtonText: 'OK'
+                            });
+                        } else {
+                            Swal.fire({
+                                icon: 'warning',
+                                title: 'Stok Obat Kosong',
+                                text: 'Obat yang Anda pilih kosong di semua gudang. Silakan pilih obat lain atau konfirmasi ke farmasi.',
+                                confirmButtonText: 'OK'
+                            });
+                        }
                     }
                 });
         $('.select2-wadah-racikan').select2({

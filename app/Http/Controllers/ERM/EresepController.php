@@ -32,13 +32,6 @@ use App\Models\ERM\PaketRacikanDetail;
 
 class EresepController extends Controller
 {
-    private function shouldKeepFractionalRacikanStock(?string $wadahNama): bool
-    {
-        $normalized = strtolower(trim(preg_replace('/\s+/', ' ', $wadahNama ?? '')));
-
-        return in_array($normalized, ['botol', 'cream / lotion'], true);
-    }
-
     /** Nama shown for a racikan: its paket (stored on the rows, or the paket with exactly this isi), null for a custom one. */
     private function racikanNama(string $resepModel, $visitationId, $racikanKe): ?string
     {
@@ -57,28 +50,65 @@ class EresepController extends Controller
      */
     private function stokKurangUntukResep($visitationId): array
     {
-        $hasil = ['mutasi' => [], 'kosong' => [], 'ed' => [], 'gudang_resep' => null];
+        return $this->stokKurangBatch([$visitationId])[$visitationId];
+    }
+
+    /**
+     * stokKurangUntukResep() for several visits at once (stok read once), keyed by visitation id. Each visit is judged
+     * on its own against the current stok. $termasukDokter: a visit farmasi has not copied yet is judged on the
+     * dokter's resep, so farmasi sees what to transfer as soon as the resep comes in ('sumber' = farmasi|dokter|null).
+     */
+    private function stokKurangBatch(array $visitationIds, bool $termasukDokter = false, bool $hanyaDokter = false): array
+    {
+        // $hanyaDokter (dokter page): judge the dokter's own resep, even when farmasi already has different rows
+        $hasil = [];
+        foreach ($visitationIds as $id) {
+            $hasil[$id] = ['mutasi' => [], 'kosong' => [], 'ed' => [], 'gudang_resep' => null, 'sumber' => null];
+        }
         $gudangId = (int) \App\Models\ERM\GudangMapping::getDefaultGudangId('resep');
-        if (!$gudangId) {
+        if (!$gudangId || !$visitationIds) {
             return $hasil;
         }
 
-        $butuh = [];
-        $nama = [];
-        $reseps = ResepFarmasi::where('visitation_id', $visitationId)->with(['obat' => fn ($q) => $q->withInactive(), 'wadah'])->get();
-        foreach ($reseps as $resep) {
-            $jumlah = $resep->racikan_ke ? $this->calculateRacikanStockReduction($resep) : (float) ($resep->jumlah ?? 0);
-            $butuh[$resep->obat_id] = ($butuh[$resep->obat_id] ?? 0) + $jumlah;
-            $nama[$resep->obat_id] = optional($resep->obat)->nama ?? 'Obat #' . $resep->obat_id;
+        $with = ['obat' => fn ($q) => $q->withInactive(), 'wadah'];
+        $resepPerVisit = [];
+        if (!$hanyaDokter) {
+            foreach (ResepFarmasi::whereIn('visitation_id', $visitationIds)->with($with)->get()->groupBy('visitation_id') as $id => $rows) {
+                $resepPerVisit[$id] = $rows;
+                $hasil[$id]['sumber'] = 'farmasi';
+            }
         }
-        $butuh = array_filter($butuh, fn ($jumlah) => $jumlah > 0);
-        if (!$butuh) {
+        if ($termasukDokter || $hanyaDokter) {
+            $belumDisalin = array_values(array_filter($visitationIds, fn ($id) => !isset($resepPerVisit[$id])));
+            if ($belumDisalin) {
+                foreach (ResepDokter::whereIn('visitation_id', $belumDisalin)->with($with)->get()->groupBy('visitation_id') as $id => $rows) {
+                    $resepPerVisit[$id] = $rows;
+                    $hasil[$id]['sumber'] = 'dokter';
+                }
+            }
+        }
+
+        $butuhPerVisit = [];
+        $nama = [];
+        foreach ($resepPerVisit as $id => $reseps) {
+            $butuh = [];
+            foreach ($reseps as $resep) {
+                $jumlah = $resep->racikan_ke ? $this->calculateRacikanStockReduction($resep) : (float) ($resep->jumlah ?? 0);
+                $butuh[$resep->obat_id] = ($butuh[$resep->obat_id] ?? 0) + $jumlah;
+                $nama[$resep->obat_id] = optional($resep->obat)->nama ?? 'Obat #' . $resep->obat_id;
+            }
+            $butuh = array_filter($butuh, fn ($jumlah) => $jumlah > 0);
+            if ($butuh) {
+                $butuhPerVisit[$id] = $butuh;
+            }
+        }
+        if (!$butuhPerVisit) {
             return $hasil;
         }
 
         // Stok per obat per gudang (all batches, the expired part separately), the gudang ED left out
         $gudangEd = app(\App\Services\ERM\GudangExpiredService::class)->gudangId();
-        $stok = \App\Models\ERM\ObatStokGudang::whereIn('obat_id', array_keys($butuh))
+        $stok = \App\Models\ERM\ObatStokGudang::whereIn('obat_id', array_keys($nama))
             ->when($gudangEd, fn ($q) => $q->where('gudang_id', '!=', $gudangEd))
             ->where('stok', '>', 0)
             ->selectRaw('obat_id, gudang_id, SUM(stok) as stok, SUM(stok * ' . \App\Models\ERM\ObatStokGudang::sqlSudahEd() . ') as stok_ed')
@@ -86,60 +116,102 @@ class EresepController extends Controller
             ->get()
             ->groupBy('obat_id');
         $namaGudang = \App\Models\ERM\Gudang::pluck('nama', 'id');
-        $hasil['gudang_resep'] = $namaGudang[$gudangId] ?? 'gudang resep';
+        $gudangResep = $namaGudang[$gudangId] ?? 'gudang resep';
 
         $fmt = fn ($n) => rtrim(rtrim(number_format((float) $n, 3, ',', '.'), '0'), ',');
         $denganEd = fn ($total, $ed) => $fmt($total) . ($ed > 0 ? ' (' . $fmt($ed) . ' sudah ED)' : '');
-        foreach ($butuh as $obatId => $jumlah) {
-            $rows = collect($stok->get($obatId, []))->keyBy(fn ($r) => (int) $r->gudang_id);
-            $resepRow = $rows->get($gudangId);
-            $total = (float) ($resepRow->stok ?? 0);
-            $ed = (float) ($resepRow->stok_ed ?? 0);
+        foreach ($butuhPerVisit as $id => $butuh) {
+            $hasil[$id]['gudang_resep'] = $gudangResep;
+            foreach ($butuh as $obatId => $jumlah) {
+                $rows = collect($stok->get($obatId, []))->keyBy(fn ($r) => (int) $r->gudang_id);
+                $resepRow = $rows->get($gudangId);
+                $total = (float) ($resepRow->stok ?? 0);
+                $ed = (float) ($resepRow->stok_ed ?? 0);
 
-            if (round($total, 4) >= round($jumlah, 4)) {
-                $dariEd = $jumlah - ($total - $ed);
-                if ($dariEd > 0.0001) {
-                    $hasil['ed'][] = "{$nama[$obatId]}: butuh {$fmt($jumlah)}, layak pakai {$fmt($total - $ed)}; {$fmt($dariEd)} diambil dari batch yang sudah ED";
+                if (round($total, 4) >= round($jumlah, 4)) {
+                    $dariEd = $jumlah - ($total - $ed);
+                    if ($dariEd > 0.0001) {
+                        $hasil[$id]['ed'][] = "{$nama[$obatId]}: butuh {$fmt($jumlah)}, layak pakai {$fmt($total - $ed)}; {$fmt($dariEd)} diambil dari batch yang sudah ED";
+                    }
+                    continue;
                 }
-                continue;
-            }
 
-            $kurang = $jumlah - $total;
-            $lain = $rows->except($gudangId)->filter(fn ($r) => (float) $r->stok > 0);
-            $baris = "{$nama[$obatId]}: butuh {$fmt($jumlah)}, stok {$hasil['gudang_resep']} {$denganEd($total, $ed)}";
-            if (round((float) $lain->sum('stok'), 4) >= round($kurang, 4)) {
-                $hasil['mutasi'][] = $baris . "; mutasikan {$fmt($kurang)} dari "
-                    . $lain->map(fn ($r, $id) => ($namaGudang[$id] ?? "Gudang #{$id}") . ' ' . $denganEd((float) $r->stok, (float) $r->stok_ed))->implode(', ');
-            } else {
-                $hasil['kosong'][] = $baris . ($lain->isNotEmpty() ? '; gudang lain total ' . $fmt($lain->sum('stok')) : '; tidak ada di gudang lain');
+                $kurang = $jumlah - $total;
+                $lain = $rows->except($gudangId)->filter(fn ($r) => (float) $r->stok > 0);
+                $baris = "{$nama[$obatId]}: butuh {$fmt($jumlah)}, stok {$gudangResep} {$denganEd($total, $ed)}";
+                if (round((float) $lain->sum('stok'), 4) >= round($kurang, 4)) {
+                    $hasil[$id]['mutasi'][] = $baris . "; mutasikan {$fmt($kurang)} dari "
+                        . $lain->map(fn ($r, $gid) => ($namaGudang[$gid] ?? "Gudang #{$gid}") . ' ' . $denganEd((float) $r->stok, (float) $r->stok_ed))->implode(', ');
+                } else {
+                    $hasil[$id]['kosong'][] = $baris . ($lain->isNotEmpty() ? '; gudang lain total ' . $fmt($lain->sum('stok')) : '; tidak ada di gudang lain');
+                }
             }
         }
 
         return $hasil;
     }
 
-    private function calculateRacikanStockReduction(ResepFarmasi $resep): float
+    /**
+     * Farmasi page: what this visit's resep still lacks in the resep gudang, known before submit
+     * (the dokter's resep when farmasi has not copied it yet). Same lines the submit check shows.
+     */
+    public function cekStokResep(Request $request, $visitationId)
     {
-        $prescribedDosis = 0.0;
-        $baseDosis = 0.0;
+        // sumber=dokter: the dokter page checks the dokter's own resep
+        $hanyaDokter = $request->get('sumber') === 'dokter';
+        // Once the invoice is transacted the stok has already been taken out: comparing the resep with what is
+        // left would report a shortage that is not there
+        $cek = $this->isInvoiceLockedForVisitation((string) $visitationId)
+            ? ['mutasi' => [], 'kosong' => [], 'ed' => [], 'gudang_resep' => null, 'sumber' => null]
+            : $this->stokKurangBatch([$visitationId], true, $hanyaDokter)[$visitationId];
 
-        if (preg_match('/(\d+(?:[.,]\d+)?)/', $resep->dosis ?? '', $m)) {
-            $prescribedDosis = (float) str_replace(',', '.', $m[1]);
-        }
-        if ($resep->obat && !empty($resep->obat->dosis) && preg_match('/(\d+(?:[.,]\d+)?)/', $resep->obat->dosis, $m2)) {
-            $baseDosis = (float) str_replace(',', '.', $m2[1]);
+        return response()->json($cek + ['url_mutasi' => url('/erm/mutasi-gudang')]);
+    }
+
+    /**
+     * Dokter page: ask farmasi to transfer the obat of this resep that are short in the resep gudang while another
+     * gudang still has them. One database notification per Farmasi user (their popup shows it); a user who still
+     * has the same request unread is not notified again.
+     */
+    public function mintaTransferStok($visitationId)
+    {
+        if ($resp = $this->guardInvoiceNotLocked((string) $visitationId)) return $resp;
+
+        $cek = $this->stokKurangBatch([$visitationId], true, true)[$visitationId];
+        if (!$cek['mutasi']) {
+            return response()->json(['success' => false, 'message' => 'Tidak ada obat yang perlu ditransfer dari gudang lain.'], 422);
         }
 
-        if ($baseDosis <= 0 || $prescribedDosis <= 0) {
-            return 0.0;
+        $visitation = Visitation::with('pasien:id,nama')->find($visitationId);
+        $pasien = optional(optional($visitation)->pasien);
+        $message = 'Mohon transfer stok ke ' . $cek['gudang_resep'] . ' untuk resep pasien '
+            . ($pasien->nama ?: '-') . ($pasien->id ? ' (RM ' . $pasien->id . ')' : '') . ":\n"
+            . implode("\n", array_map(fn ($baris) => '- ' . $baris, $cek['mutasi']))
+            . "\n\nDari: " . Auth::user()->name;
+
+        $terkirim = 0;
+        foreach (User::role('Farmasi')->get() as $farmasi) {
+            if ($farmasi->unreadNotifications()->where('type', \App\Notifications\MintaTransferStokNotification::class)->get()
+                ->contains(fn ($n) => ($n->data['message'] ?? null) === $message)) {
+                continue;
+            }
+            $farmasi->notify(new \App\Notifications\MintaTransferStokNotification($message, Auth::user()->name, $visitationId));
+            $terkirim++;
         }
 
-        $rawReduction = ($prescribedDosis * (float) ($resep->bungkus ?? 1)) / $baseDosis;
-        if ($this->shouldKeepFractionalRacikanStock(optional($resep->wadah)->nama)) {
-            return round($rawReduction, 3);
-        }
+        return response()->json([
+            'success' => true,
+            'message' => $terkirim > 0
+                ? 'Permintaan transfer ' . count($cek['mutasi']) . ' obat dikirim ke farmasi.'
+                : 'Permintaan yang sama sudah dikirim dan belum dibaca farmasi.',
+        ]);
+    }
 
-        return (float) ceil($rawReduction);
+    /** ResepFarmasi or ResepDokter row of a racikan: same columns (dosis, bungkus, obat, wadah) */
+    private function calculateRacikanStockReduction($resep): float
+    {
+        // One formula for submit, the stok checks and Saran Isi Ulang
+        return \App\Services\ERM\StokResepService::stokDikurangiRacikan($resep);
     }
 
     private function getInvoicePaymentMethodForVisitation(string $visitationId): ?string
@@ -372,11 +444,20 @@ class EresepController extends Controller
             ->unique(fn ($v) => $v->pasien_id . '|' . $v->klinik_id)
             ->mapWithKeys(fn ($v) => [$v->pasien_id . '|' . $v->klinik_id => $v->id]);
 
+        // Stok still to transfer into the resep gudang, for visits whose invoice is not transacted yet
+        // (payment is what takes the stok out); judged on the dokter's resep until farmasi copies it
+        $belumBayar = array_values(array_filter($visitationIds, fn ($id) => trim((string) (optional($invoices->get($id))->payment_method ?? '')) === ''));
+        $stokKurang = $this->stokKurangBatch($belumBayar, true);
+
         foreach ($rows as &$row) {
             $id = $row['id'];
             $resep = $resepDetails->get($id);
             $invoice = $invoices->get($id);
             $billing = $billingCounts->get($id);
+
+            $row['stok_perlu_mutasi'] = count($stokKurang[$id]['mutasi'] ?? []);
+            $row['stok_kosong'] = count($stokKurang[$id]['kosong'] ?? []);
+            $row['stok_kurang_detail'] = array_merge($stokKurang[$id]['mutasi'] ?? [], $stokKurang[$id]['kosong'] ?? []);
 
             $row['no_resep'] = $resep->no_resep ?? null;
             $row['alergi'] = $alergiByPasien->get($row['pasien_id'], []);

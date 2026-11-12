@@ -49,6 +49,10 @@
     #obatAltModal .oa-lebih-mahal { color: #dc2626; }
     #obatAltModal .oa-stok-ok { color: #059669; font-weight: 700; }
     #obatAltModal .oa-stok-empty { color: #dc2626; font-weight: 700; }
+    #obatAltModal .oa-stok-lain { color: #1d4ed8; font-size: .72rem; font-weight: 700; white-space: nowrap; }
+    html.theme-dark #obatAltModal .oa-stok-lain { color: #93c5fd; }
+    #obatAltModal .oa-stok-lain-ed { color: #b45309; font-size: .72rem; font-weight: 700; white-space: nowrap; }
+    html.theme-dark #obatAltModal .oa-stok-lain-ed { color: #fbbf24; }
     #obatAltModal .oa-empty { padding: 24px; text-align: center; color: var(--sb-muted, #8a94ad); }
     html.theme-dark #obatAltModal .oa-zat.is-sama, html.theme-dark #obatAltModal .oa-generik,
     html.theme-dark #obatAltModal .oa-persis, html.theme-dark #obatAltModal .oa-lebih-murah, html.theme-dark #obatAltModal .oa-stok-ok { color: #34d399; }
@@ -168,7 +172,7 @@ window.ObatAlternatif = (function () {
             <td>${zat}</td>
             <td><span class="oa-badge ${item.is_generik ? 'oa-generik' : 'oa-paten'}">${item.is_generik ? 'GENERIK' : 'PATEN'}</span></td>
             <td class="text-right text-nowrap">${rupiah(harga)}${selisih}</td>
-            <td class="text-center ${stok > 0 ? 'oa-stok-ok' : 'oa-stok-empty'}">${stok > 0 ? stok : 'Kosong'}</td>
+            <td class="text-center ${stok > 0 ? 'oa-stok-ok' : 'oa-stok-empty'}">${stok > 0 ? stok : 'Kosong'}${Number(item.stok_lain) > 0 ? `<div class="oa-stok-lain" title="Stok di gudang lain, perlu transfer ke gudang resep">+${esc(new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(Number(item.stok_lain)))} gudang lain</div>` : ''}${Number(item.stok_lain_ed) > 0 ? `<div class="oa-stok-lain-ed" title="Batch sudah ED di gudang lain, tidak bisa dipakai">⚠ +${esc(new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(Number(item.stok_lain_ed)))} ED</div>` : ''}</td>
             <td class="text-right">${isRef ? '' : `<button type="button" class="btn btn-sm btn-primary oa-pick" data-id="${esc(item.id)}">Pilih</button>`}</td>
         </tr>`;
     }

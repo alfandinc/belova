@@ -1,5 +1,5 @@
 @extends('layouts.finance.app')
-@section('title', 'Finance | Kepuasan Pasien')
+@section('title', 'CRM | Kepuasan Pasien')
 @section('navbar')
     @include('layouts.finance.navbar')
 @endsection
