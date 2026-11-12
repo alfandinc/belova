@@ -263,14 +263,45 @@ $(function () {
         var items = terpilih();
         if (!items.length || !state.gudangAsal || !state.gudangResep) return;
         var $btn = $(this);
+
+        // Preview: every line that will go into the transfer, with the stok before / after on both sides
+        var byId = {};
+        state.rows.forEach(function (r) { byId[r.obat_id] = r; });
+        var lebih = [];
+        var baris = items.map(function (it, i) {
+            var r = byId[it.obat_id] || {};
+            var sisaAsal = (r.stok_asal || 0) - it.jumlah;
+            var apotekSetelah = (r.stok_resep || 0) + (r.dalam_transfer || 0) + it.jumlah;
+            var cukup = apotekSetelah + 0.0001 >= (r.kebutuhan || 0);
+            if (sisaAsal < -0.0001) lebih.push(r.nama);
+            return '<tr' + (sisaAsal < -0.0001 ? ' class="iu-pv-error"' : '') + '>'
+                + '<td class="text-muted">' + (i + 1) + '</td>'
+                + '<td class="text-left">' + esc(r.nama) + '</td>'
+                + '<td class="text-right font-weight-bold">' + fmt(it.jumlah) + ' <small class="text-muted">' + esc(r.satuan || '') + '</small></td>'
+                + '<td class="text-right">' + fmt(r.stok_asal) + ' &rarr; ' + fmt(sisaAsal) + '</td>'
+                + '<td class="text-right">' + fmt(r.stok_resep) + ' &rarr; ' + fmt(apotekSetelah)
+                +   (cukup ? '' : ' <span class="iu-pv-kurang" title="Masih kurang dari yang akan dipakai (' + bulat(r.kebutuhan) + ')">masih kurang</span>') + '</td>'
+                + '</tr>';
+        }).join('');
+        var total = items.reduce(function (s, it) { return s + it.jumlah; }, 0);
+
         Swal.fire({
-            icon: 'question',
-            title: 'Mutasi ' + items.length + ' obat ke apotek?',
-            html: '<strong>' + esc(state.gudangAsal.nama) + '</strong> &rarr; <strong>' + esc(state.gudangResep.nama) + '</strong><br>'
-                + 'Dibuat sebagai Transfer Antar Gudang. Stok baru pindah setelah disetujui.',
+            title: 'Preview Mutasi ke Apotek',
+            width: 900,
+            html: '<div class="iu-pv-route"><strong>' + esc(state.gudangAsal.nama) + '</strong> &rarr; <strong>' + esc(state.gudangResep.nama) + '</strong>'
+                + ' <span class="text-muted">· ' + items.length + ' obat · total ' + fmt(total) + '</span></div>'
+                + (lebih.length ? '<div class="iu-pv-alert">Jumlah melebihi stok gudang asal: ' + esc(lebih.join(', ')) + '. Ubah jumlahnya dulu.</div>' : '')
+                + '<div class="iu-pv-wrap"><table class="table table-sm iu-pv-table mb-0"><thead><tr>'
+                + '<th>#</th><th class="text-left">Obat</th><th class="text-right">Jumlah mutasi</th>'
+                + '<th class="text-right">Stok ' + esc(state.gudangAsal.nama) + '</th><th class="text-right">Stok apotek</th>'
+                + '</tr></thead><tbody>' + baris + '</tbody></table></div>'
+                + '<div class="iu-pv-note">Dibuat sebagai Transfer Antar Gudang dengan status menunggu approval. Stok baru pindah setelah disetujui.</div>',
             showCancelButton: true,
-            confirmButtonText: 'Ya, buat mutasi',
-            cancelButtonText: 'Batal'
+            showConfirmButton: lebih.length === 0,
+            confirmButtonText: 'Buat mutasi',
+            cancelButtonText: lebih.length ? 'Tutup' : 'Batal',
+            reverseButtons: true,
+            focusConfirm: false
         }).then(function (result) {
             if (!result.value) return;
             $btn.prop('disabled', true);
@@ -327,5 +358,22 @@ html.theme-dark .iu-page { --iu-line: #334155; --iu-muted: #94a3b8; --iu-text: #
 #iu-table td { vertical-align: middle; }
 #iu-table .iu-jumlah { min-width: 84px; }
 #iu-table .iu-kurang { color: var(--iu-bad); font-weight: 800; }
+
+/* Preview modal (SweetAlert): wide table, scrolls when many obat are selected */
+.iu-pv-route { margin-bottom: 8px; font-size: .95rem; }
+.iu-pv-wrap { max-height: 50vh; overflow: auto; border: 1px solid #e2e8f0; border-radius: 8px; }
+.iu-pv-table { font-size: .85rem; }
+.iu-pv-table th { position: sticky; top: 0; background: #f1f5f9; white-space: nowrap; }
+.iu-pv-table td { vertical-align: middle; white-space: nowrap; }
+.iu-pv-table td:nth-child(2) { white-space: normal; }
+.iu-pv-table tr.iu-pv-error td { background: rgba(220, 38, 38, .08); color: #b91c1c; }
+.iu-pv-kurang { font-size: .72rem; font-weight: 700; color: #b45309; }
+.iu-pv-alert { margin-bottom: 8px; padding: 6px 10px; border-radius: 8px; background: rgba(220, 38, 38, .08); color: #b91c1c; font-size: .85rem; }
+.iu-pv-note { margin-top: 8px; font-size: .8rem; color: #64748b; }
+html.theme-dark .iu-pv-wrap { border-color: #334155; }
+html.theme-dark .iu-pv-table th { background: #1e293b; }
+html.theme-dark .iu-pv-table tr.iu-pv-error td, html.theme-dark .iu-pv-alert { color: #fca5a5; }
+html.theme-dark .iu-pv-kurang { color: #fbbf24; }
+html.theme-dark .iu-pv-note { color: #94a3b8; }
 </style>
 @endsection
