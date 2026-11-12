@@ -4,14 +4,11 @@
     @include('layouts.erm.navbar-farmasi')
 @endsection
 @section('content')
-<div class="container-fluid">
+<div class="container-fluid iu-page">
     <div class="d-flex flex-wrap align-items-center justify-content-between mt-3 mb-3">
         <div>
             <h4 class="page-title mb-0">Saran Isi Ulang Apotek</h4>
-            <small class="text-muted">
-                Obat yang akan kurang di <strong>{{ $gudangResep ?? 'gudang resep' }}</strong> untuk pasien yang sudah terdaftar.
-                Dihitung otomatis dari resep dan riwayat pasien, tidak perlu mengisi stok minimum per obat.
-            </small>
+            <small class="text-muted">Obat yang perlu dikirim ke <strong>{{ $gudangResep ?? 'apotek' }}</strong> supaya cukup untuk pasien yang sudah terdaftar.</small>
         </div>
         <a href="{{ url('/erm/mutasi-gudang') }}" class="btn btn-outline-secondary mt-2 mt-md-0"><i class="fas fa-truck mr-1"></i>Transfer Antar Gudang</a>
     </div>
@@ -21,66 +18,73 @@
     @else
     <div class="card">
         <div class="card-body">
-            <div class="form-row align-items-end mb-2">
+            {{-- Filters --}}
+            <div class="form-row align-items-end">
                 <div class="form-group col-md-3 col-6">
-                    <label for="f-hari" class="mb-1">Kunjungan terdaftar</label>
+                    <label for="f-hari" class="mb-1">Pasien terdaftar</label>
                     <select id="f-hari" class="form-control form-control-sm">
                         @foreach ($hariKunjungan as $h)
-                            <option value="{{ $h }}" {{ $h === 7 ? 'selected' : '' }}>{{ $h === 1 ? 'Hari ini saja' : 'Hari ini s.d. ' . $h . ' hari ke depan' }}</option>
+                            <option value="{{ $h }}" {{ $h === 7 ? 'selected' : '' }}>{{ $h === 1 ? 'Hari ini' : $h . ' hari ke depan' }}</option>
                         @endforeach
                     </select>
                 </div>
                 <div class="form-group col-md-3 col-6">
-                    <label for="f-asal" class="mb-1">Ambil dari gudang</label>
+                    <label for="f-asal" class="mb-1">Kirim dari</label>
                     <select id="f-asal" class="form-control form-control-sm">
-                        <option value="">Otomatis (paling lengkap)</option>
+                        <option value="">Otomatis (gudang paling lengkap)</option>
                         @foreach ($gudangLain as $g)
                             <option value="{{ $g->id }}">{{ $g->nama }}</option>
                         @endforeach
                     </select>
                 </div>
-                <div class="form-group col-md-4 col-12">
+                <div class="form-group col-md-4 col-9">
                     <label for="f-cari" class="mb-1">Cari obat</label>
                     <input type="search" id="f-cari" class="form-control form-control-sm" placeholder="Nama / kode obat">
                 </div>
-                <div class="form-group col-md-2 col-12">
-                    <button type="button" class="btn btn-sm btn-outline-secondary btn-block" id="btn-muat-ulang"><i class="fas fa-sync-alt mr-1"></i>Hitung ulang</button>
+                <div class="form-group col-md-2 col-3">
+                    <button type="button" class="btn btn-sm btn-outline-secondary btn-block" id="btn-muat-ulang" title="Hitung ulang"><i class="fas fa-sync-alt"></i><span class="d-none d-md-inline ml-1">Hitung ulang</span></button>
                 </div>
             </div>
 
-            <div class="iu-rumus text-muted mb-3">
-                <strong>Pasti</strong> = resep yang sudah dibuat (farmasi, atau dokter bila belum disalin) untuk kunjungan yang belum dibayar.
-                <strong>Prediksi</strong> = pasien terdaftar yang belum diperiksa: rata-rata obat pada {{ $riwayatKunjungan }} kunjungan terakhirnya yang ada resep di klinik yang sama.
-                Obat muncul bila kebutuhan &gt; stok apotek + transfer yang masih menunggu approval. Pasien tanpa riwayat resep tidak diprediksi.
-            </div>
+            {{-- Summary --}}
+            <div class="iu-summary" id="iu-summary"></div>
 
+            <details class="iu-howto mb-3">
+                <summary>Cara menghitung</summary>
+                <ul class="mb-0">
+                    <li><strong>Akan dipakai</strong> = obat yang diperkirakan keluar untuk pasien terdaftar pada periode ini.
+                        Pasien yang sudah punya resep dihitung dari resepnya. Pasien yang belum diperiksa dihitung dari rata-rata obat pada {{ $riwayatKunjungan }} kunjungan terakhirnya yang ada resep, di klinik yang sama.</li>
+                    <li>Pasien baru (belum pernah dapat resep di klinik itu dalam setahun) belum bisa diperkirakan, jadi tidak dihitung.</li>
+                    <li><strong>Kurang</strong> = akan dipakai − stok apotek − transfer yang masih menunggu approval. Angka dibulatkan ke atas.</li>
+                    <li>Transfer yang dibuat dari halaman ini tetap harus disetujui di Transfer Antar Gudang.</li>
+                </ul>
+            </details>
+
+            {{-- Status tabs + action --}}
             <div class="d-flex flex-wrap align-items-center justify-content-between mb-2">
-                <div id="iu-ringkasan" class="mb-2 mb-md-0"></div>
+                <ul class="nav nav-pills iu-tabs mb-2 mb-md-0" id="iu-tabs"></ul>
                 @if ($canRequest)
                     <button type="button" class="btn btn-primary" id="btn-buat-transfer" disabled>
-                        <i class="fas fa-truck mr-1"></i>Buat Transfer <span id="iu-terpilih">(0 obat)</span>
+                        <i class="fas fa-truck mr-1"></i>Kirim ke Apotek <span id="iu-terpilih"></span>
                     </button>
                 @endif
             </div>
 
             <div class="table-responsive">
-                <table class="table table-bordered table-hover table-sm mb-0" id="iu-table">
+                <table class="table table-hover table-sm mb-0" id="iu-table">
                     <thead class="thead-light">
                         <tr>
-                            <th class="text-center" style="width:36px;"><input type="checkbox" id="iu-semua" title="Pilih semua yang bisa ditransfer"></th>
+                            <th class="text-center" style="width:36px;"><input type="checkbox" id="iu-semua" title="Pilih semua yang bisa dikirim"></th>
                             <th>Obat</th>
-                            <th class="text-right">Pasti</th>
-                            <th class="text-right">Prediksi</th>
-                            <th class="text-right">Kebutuhan</th>
+                            <th class="text-right">Akan dipakai</th>
                             <th class="text-right">Stok apotek</th>
                             <th class="text-right">Kurang</th>
-                            <th class="text-right">Stok gudang asal</th>
-                            <th class="text-right" style="width:120px;">Transfer</th>
-                            <th>Status</th>
+                            <th class="text-right" style="width:150px;">Kirim</th>
+                            <th>Keterangan</th>
                         </tr>
                     </thead>
                     <tbody id="iu-body">
-                        <tr><td colspan="10" class="text-center text-muted py-4"><i class="fas fa-spinner fa-spin mr-1"></i>Menghitung...</td></tr>
+                        <tr><td colspan="7" class="text-center text-muted py-4"><i class="fas fa-spinner fa-spin mr-1"></i>Menghitung...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -99,15 +103,16 @@ $(function () {
     var DATA_URL = "{{ route('erm.isi-ulang-resep.data') }}";
     var STORE_URL = "{{ route('erm.mutasi-gudang.store') }}";
     var CAN_REQUEST = @json($canRequest);
-    var COLS = 10;
-    var state = { rows: [], gudangResep: null, gudangAsal: null, ringkasan: {}, periode: {} };
+    var COLS = 7;
+    var state = { rows: [], gudangResep: null, gudangAsal: null, ringkasan: {}, periode: {}, tab: 'semua' };
     var request = null;
 
+    // One plain-language label per status; "tab" groups them for the filter
     var STATUS = {
-        transfer: ['Bisa ditransfer', 'badge-success'],
-        sebagian: ['Transfer sebagian', 'badge-warning'],
-        gudang_lain: ['Ada di gudang lain', 'badge-info'],
-        pengadaan: ['Kosong di semua gudang', 'badge-danger']
+        transfer:    { label: 'Siap dikirim', cls: 'badge-success', tab: 'kirim' },
+        sebagian:    { label: 'Hanya sebagian', cls: 'badge-warning', tab: 'kirim' },
+        gudang_lain: { label: 'Ada di gudang lain', cls: 'badge-info', tab: 'lain' },
+        pengadaan:   { label: 'Perlu dipesan', cls: 'badge-danger', tab: 'pesan' }
     };
 
     function esc(value) {
@@ -115,10 +120,8 @@ $(function () {
             return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
         });
     }
-
-    function fmt(n) {
-        return Number(n || 0).toLocaleString('id-ID', { maximumFractionDigits: 2 });
-    }
+    function fmt(n) { return Number(n || 0).toLocaleString('id-ID', { maximumFractionDigits: 1 }); }
+    function bulat(n) { return Math.ceil(Number(n || 0) - 0.0001).toLocaleString('id-ID'); }
 
     function message(text, cls) {
         $('#iu-body').html('<tr><td colspan="' + COLS + '" class="text-center py-4 ' + (cls || 'text-muted') + '">' + text + '</td></tr>');
@@ -134,6 +137,7 @@ $(function () {
                 state.gudangAsal = res.gudang_asal;
                 state.ringkasan = res.ringkasan || {};
                 state.periode = res.periode || {};
+                renderSummary();
                 render();
             })
             .fail(function (xhr, status) {
@@ -142,51 +146,78 @@ $(function () {
             .always(function () { request = null; });
     }
 
-    function render() {
+    function count(tab) {
+        return state.rows.filter(function (r) { return tab === 'semua' || (STATUS[r.status] || STATUS.pengadaan).tab === tab; }).length;
+    }
+
+    function renderSummary() {
         var r = state.ringkasan;
-        var asal = state.gudangAsal ? state.gudangAsal.nama : '-';
-        var periode = state.periode.mulai === state.periode.sampai ? state.periode.mulai : (state.periode.mulai + ' - ' + state.periode.sampai);
-        $('#iu-ringkasan').html(
-            '<span class="badge badge-secondary mr-1" title="Kunjungan terdaftar yang belum dibayar dan tidak dibatalkan">' + esc(periode) + ': ' + (r.kunjungan || 0) + ' kunjungan</span>'
-            + '<span class="badge badge-primary mr-1">' + (r.dengan_resep || 0) + ' sudah ada resep</span>'
-            + '<span class="badge badge-info mr-1">' + (r.diprediksi || 0) + ' diprediksi dari riwayat</span>'
-            + (r.tanpa_riwayat ? '<span class="badge badge-light mr-1" title="Belum pernah mendapat resep di klinik itu dalam setahun terakhir">' + r.tanpa_riwayat + ' tanpa riwayat</span>' : '')
-            + '<span class="badge badge-warning">' + state.rows.length + ' obat kurang</span>'
-            + ' <small class="text-muted ml-1">Gudang asal: <strong>' + esc(asal) + '</strong></small>'
+        var asal = state.gudangAsal ? state.gudangAsal.nama : 'gudang lain';
+        var periode = state.periode.mulai === state.periode.sampai ? state.periode.mulai : (state.periode.mulai + ' – ' + state.periode.sampai);
+        var dihitung = (r.dengan_resep || 0) + (r.diprediksi || 0);
+        var card = function (cls, icon, angka, judul, sub) {
+            return '<div class="iu-card ' + cls + '"><i class="fas ' + icon + '"></i><div>'
+                + '<div class="iu-card-num">' + angka + '</div><div class="iu-card-title">' + judul + '</div>'
+                + (sub ? '<div class="iu-card-sub">' + sub + '</div>' : '') + '</div></div>';
+        };
+        $('#iu-summary').html(
+            card('is-neutral', 'fa-user-friends', (r.kunjungan || 0), 'pasien terdaftar', esc(periode) + ' · ' + dihitung + ' dihitung'
+                + (r.tanpa_riwayat ? ', ' + r.tanpa_riwayat + ' pasien baru belum bisa diperkirakan' : ''))
+            + card('is-warn', 'fa-exclamation-circle', state.rows.length, 'obat akan kurang', 'stok apotek tidak cukup')
+            + card('is-ok', 'fa-truck', count('kirim'), 'bisa dikirim', 'dari ' + esc(asal))
+            + card('is-bad', 'fa-shopping-cart', count('pesan'), 'perlu dipesan', 'kosong di semua gudang')
         );
 
+        var tabs = [['semua', 'Semua'], ['kirim', 'Bisa dikirim'], ['lain', 'Ada di gudang lain'], ['pesan', 'Perlu dipesan']];
+        if (!tabs.some(function (t) { return t[0] === state.tab && (t[0] === 'semua' || count(t[0]) > 0); })) state.tab = 'semua';
+        $('#iu-tabs').html(tabs.filter(function (t) { return t[0] === 'semua' || count(t[0]) > 0; }).map(function (t) {
+            return '<li class="nav-item"><a class="nav-link' + (state.tab === t[0] ? ' active' : '') + '" href="#" data-tab="' + t[0] + '">'
+                + t[1] + ' <span class="badge badge-light ml-1">' + count(t[0]) + '</span></a></li>';
+        }).join(''));
+    }
+
+    function keterangan(row) {
+        var asal = state.gudangAsal ? state.gudangAsal.nama : 'gudang asal';
+        var lain = (row.gudang_lain || []).map(function (g) { return esc(g.nama) + ' ' + fmt(g.stok); }).join(', ');
+        if (row.status === 'transfer') return 'Stok ' + esc(asal) + ' ' + fmt(row.stok_asal);
+        if (row.status === 'sebagian') return esc(asal) + ' hanya punya ' + fmt(row.stok_asal) + ', masih kurang ' + bulat(row.kurang - row.saran);
+        if (row.status === 'gudang_lain') return 'Tidak ada di ' + esc(asal) + '. Ada di: ' + lain;
+        return 'Tidak ada stok di gudang mana pun';
+    }
+
+    function render() {
         var cari = $.trim($('#f-cari').val()).toLowerCase();
         var rows = state.rows.filter(function (row) {
-            return !cari || (row.nama || '').toLowerCase().indexOf(cari) !== -1 || (row.kode || '').toLowerCase().indexOf(cari) !== -1;
+            var st = STATUS[row.status] || STATUS.pengadaan;
+            return (state.tab === 'semua' || st.tab === state.tab)
+                && (!cari || (row.nama || '').toLowerCase().indexOf(cari) !== -1 || (row.kode || '').toLowerCase().indexOf(cari) !== -1);
         });
 
         if (!rows.length) {
-            message(state.rows.length ? 'Tidak ada obat yang cocok dengan pencarian.' : 'Stok apotek cukup untuk semua pasien yang terdaftar pada periode ini.');
+            message(state.rows.length ? 'Tidak ada obat yang cocok.' : '<i class="fas fa-check-circle text-success mr-1"></i>Stok apotek cukup untuk semua pasien terdaftar pada periode ini.');
             updateTerpilih();
             return;
         }
 
         $('#iu-body').html(rows.map(function (row) {
             var st = STATUS[row.status] || STATUS.pengadaan;
-            var lain = (row.gudang_lain || []).map(function (g) { return g.nama + ' ' + fmt(g.stok); }).join(', ');
             var bisaPilih = CAN_REQUEST && row.saran > 0;
+            var sumber = [];
+            if (row.pasti > 0) sumber.push(bulat(row.pasti) + ' dari resep yang sudah ada');
+            if (row.prediksi > 0) sumber.push(bulat(row.prediksi) + ' perkiraan dari riwayat pasien');
             return '<tr data-obat-id="' + row.obat_id + '">'
                 + '<td class="text-center">' + (bisaPilih ? '<input type="checkbox" class="iu-pilih" checked>' : '') + '</td>'
                 + '<td><div class="font-weight-bold">' + esc(row.nama) + '</div>'
-                +   '<small class="text-muted">' + esc([row.kode, row.satuan].filter(Boolean).join(' · ')) + ' · ' + row.kunjungan + ' kunjungan</small></td>'
-                + '<td class="text-right">' + (row.pasti > 0 ? fmt(row.pasti) : '-') + '</td>'
-                + '<td class="text-right">' + (row.prediksi > 0 ? fmt(row.prediksi) : '-') + '</td>'
-                + '<td class="text-right font-weight-bold">' + fmt(row.kebutuhan) + '</td>'
-                + '<td class="text-right ' + (row.stok_resep <= 0 ? 'text-danger font-weight-bold' : '') + '">' + fmt(row.stok_resep)
-                +   (row.dalam_transfer > 0 ? '<div><small class="text-info" title="Transfer menunggu approval">+' + fmt(row.dalam_transfer) + ' dalam transfer</small></div>' : '') + '</td>'
-                + '<td class="text-right text-danger font-weight-bold">' + fmt(row.kurang) + '</td>'
-                + '<td class="text-right" title="' + esc(lain ? 'Semua gudang lain: ' + lain : 'Tidak ada di gudang lain') + '">' + fmt(row.stok_asal)
-                +   (row.stok_lain > row.stok_asal ? '<div><small class="text-muted">total gudang lain ' + fmt(row.stok_lain) + '</small></div>' : '') + '</td>'
+                +   '<small class="text-muted">untuk ' + row.kunjungan + ' pasien' + (row.kode ? ' · ' + esc(row.kode) : '') + '</small></td>'
+                + '<td class="text-right" title="' + esc(sumber.join('\n')) + '">' + bulat(row.kebutuhan) + ' <small class="text-muted">' + esc(row.satuan || '') + '</small>'
+                +   (row.pasti > 0 ? '<div><small class="text-primary">' + bulat(row.pasti) + ' sudah diresepkan</small></div>' : '') + '</td>'
+                + '<td class="text-right">' + fmt(row.stok_resep)
+                +   (row.dalam_transfer > 0 ? '<div><small class="text-info">+' + fmt(row.dalam_transfer) + ' sedang dikirim</small></div>' : '') + '</td>'
+                + '<td class="text-right iu-kurang">' + bulat(row.kurang) + '</td>'
                 + '<td class="text-right">' + (bisaPilih
                         ? '<input type="number" class="form-control form-control-sm text-right iu-jumlah" min="1" max="' + row.stok_asal + '" step="1" value="' + row.saran + '">'
-                        : (row.saran > 0 ? fmt(row.saran) : '-')) + '</td>'
-                + '<td><span class="badge ' + st[1] + '">' + st[0] + '</span>'
-                +   (row.status === 'gudang_lain' ? '<div><small class="text-muted">' + esc(lain) + '</small></div>' : '') + '</td>'
+                        : '<span class="text-muted">-</span>') + '</td>'
+                + '<td><span class="badge ' + st.cls + '">' + st.label + '</span><div><small class="text-muted">' + keterangan(row) + '</small></div></td>'
                 + '</tr>';
         }).join(''));
         updateTerpilih();
@@ -205,7 +236,7 @@ $(function () {
 
     function updateTerpilih() {
         var n = terpilih().length;
-        $('#iu-terpilih').text('(' + n + ' obat)');
+        $('#iu-terpilih').text(n ? '(' + n + ' obat)' : '');
         $('#btn-buat-transfer').prop('disabled', n === 0);
         var $boxes = $('#iu-body .iu-pilih');
         $('#iu-semua').prop('checked', $boxes.length > 0 && $boxes.filter(':checked').length === $boxes.length);
@@ -214,6 +245,13 @@ $(function () {
     $('#f-asal, #f-hari').on('change', load);
     $('#btn-muat-ulang').on('click', load);
     $('#f-cari').on('input', render);
+    $('#iu-tabs').on('click', 'a[data-tab]', function (e) {
+        e.preventDefault();
+        state.tab = $(this).data('tab');
+        $('#iu-tabs .nav-link').removeClass('active');
+        $(this).addClass('active');
+        render();
+    });
     $('#iu-semua').on('change', function () {
         $('#iu-body .iu-pilih').prop('checked', this.checked);
         updateTerpilih();
@@ -221,15 +259,15 @@ $(function () {
     $('#iu-body').on('change input', '.iu-pilih, .iu-jumlah', updateTerpilih);
 
     $('#btn-buat-transfer').on('click', function () {
-        // The search box hides rows: only what is on screen is sent, so say how many
+        // Only the rows on screen (tab + search) are sent, so the confirmation says how many
         var items = terpilih();
         if (!items.length || !state.gudangAsal || !state.gudangResep) return;
         var $btn = $(this);
         Swal.fire({
             icon: 'question',
-            title: 'Buat transfer?',
+            title: 'Kirim ' + items.length + ' obat ke apotek?',
             html: '<strong>' + esc(state.gudangAsal.nama) + '</strong> &rarr; <strong>' + esc(state.gudangResep.nama) + '</strong><br>'
-                + items.length + ' obat. Stok baru berpindah setelah transfer disetujui.',
+                + 'Dibuat sebagai Transfer Antar Gudang. Stok baru pindah setelah disetujui.',
             showCancelButton: true,
             confirmButtonText: 'Ya, buat transfer',
             cancelButtonText: 'Batal'
@@ -263,8 +301,31 @@ $(function () {
 
 @push('styles')
 <style>
+.iu-page { --iu-line: #e2e8f0; --iu-muted: #64748b; --iu-text: #1e293b; --iu-bg: #f8fafc;
+    --iu-ok: #059669; --iu-warn: #d97706; --iu-bad: #dc2626; --iu-neutral: #2563eb; }
+html.theme-dark .iu-page { --iu-line: #334155; --iu-muted: #94a3b8; --iu-text: #e2e8f0; --iu-bg: rgba(148, 163, 184, .08);
+    --iu-ok: #34d399; --iu-warn: #fbbf24; --iu-bad: #f87171; --iu-neutral: #93c5fd; }
+
+.iu-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 4px 0 12px; }
+@media (max-width: 991px) { .iu-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.iu-card { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border: 1px solid var(--iu-line);
+    border-left-width: 4px; border-radius: 10px; background: var(--iu-bg); }
+.iu-card > i { font-size: 1.1rem; margin-top: 4px; }
+.iu-card.is-neutral { border-left-color: var(--iu-neutral); } .iu-card.is-neutral > i { color: var(--iu-neutral); }
+.iu-card.is-warn { border-left-color: var(--iu-warn); } .iu-card.is-warn > i { color: var(--iu-warn); }
+.iu-card.is-ok { border-left-color: var(--iu-ok); } .iu-card.is-ok > i { color: var(--iu-ok); }
+.iu-card.is-bad { border-left-color: var(--iu-bad); } .iu-card.is-bad > i { color: var(--iu-bad); }
+.iu-card-num { font-size: 1.4rem; font-weight: 800; line-height: 1.1; color: var(--iu-text); }
+.iu-card-title { font-weight: 700; color: var(--iu-text); }
+.iu-card-sub { font-size: .75rem; color: var(--iu-muted); }
+
+.iu-howto { font-size: .8rem; color: var(--iu-muted); }
+.iu-howto summary { cursor: pointer; font-weight: 700; width: max-content; }
+.iu-howto ul { margin-top: 6px; padding-left: 18px; line-height: 1.6; }
+
+.iu-tabs .nav-link { padding: .3rem .75rem; font-size: .85rem; }
 #iu-table td { vertical-align: middle; }
 #iu-table .iu-jumlah { min-width: 84px; }
-.iu-rumus { font-size: .8rem; line-height: 1.5; }
+#iu-table .iu-kurang { color: var(--iu-bad); font-weight: 800; }
 </style>
 @endpush
