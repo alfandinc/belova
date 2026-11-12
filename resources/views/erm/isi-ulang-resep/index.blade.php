@@ -8,7 +8,7 @@
     <div class="d-flex flex-wrap align-items-center justify-content-between mt-3 mb-3">
         <div>
             <h4 class="page-title mb-0">Saran Isi Ulang Apotek</h4>
-            <small class="text-muted">Obat yang perlu dikirim ke <strong>{{ $gudangResep ?? 'apotek' }}</strong> supaya cukup untuk pasien yang sudah terdaftar.</small>
+            <small class="text-muted">Obat yang perlu dimutasi ke <strong>{{ $gudangResep ?? 'apotek' }}</strong> supaya cukup untuk pasien yang sudah terdaftar.</small>
         </div>
         <a href="{{ url('/erm/mutasi-gudang') }}" class="btn btn-outline-secondary mt-2 mt-md-0"><i class="fas fa-truck mr-1"></i>Transfer Antar Gudang</a>
     </div>
@@ -29,7 +29,7 @@
                     </select>
                 </div>
                 <div class="form-group col-md-3 col-6">
-                    <label for="f-asal" class="mb-1">Kirim dari</label>
+                    <label for="f-asal" class="mb-1">Mutasi dari</label>
                     <select id="f-asal" class="form-control form-control-sm">
                         <option value="">Otomatis (gudang paling lengkap)</option>
                         @foreach ($gudangLain as $g)
@@ -56,7 +56,7 @@
                         Pasien yang sudah punya resep dihitung dari resepnya. Pasien yang belum diperiksa dihitung dari rata-rata obat pada {{ $riwayatKunjungan }} kunjungan terakhirnya yang ada resep, di klinik yang sama.</li>
                     <li>Pasien baru (belum pernah dapat resep di klinik itu dalam setahun) belum bisa diperkirakan, jadi tidak dihitung.</li>
                     <li><strong>Kurang</strong> = akan dipakai − stok apotek − transfer yang masih menunggu approval. Angka dibulatkan ke atas.</li>
-                    <li>Transfer yang dibuat dari halaman ini tetap harus disetujui di Transfer Antar Gudang.</li>
+                    <li>Halaman ini hanya membuat mutasi antar gudang (Transfer Antar Gudang), tetap harus disetujui di sana. Obat yang stoknya habis di semua gudang hanya ditampilkan sebagai informasi.</li>
                 </ul>
             </details>
 
@@ -65,7 +65,7 @@
                 <ul class="nav nav-pills iu-tabs mb-2 mb-md-0" id="iu-tabs"></ul>
                 @if ($canRequest)
                     <button type="button" class="btn btn-primary" id="btn-buat-transfer" disabled>
-                        <i class="fas fa-truck mr-1"></i>Kirim ke Apotek <span id="iu-terpilih"></span>
+                        <i class="fas fa-truck mr-1"></i>Buat Mutasi ke Apotek <span id="iu-terpilih"></span>
                     </button>
                 @endif
             </div>
@@ -74,12 +74,12 @@
                 <table class="table table-hover table-sm mb-0" id="iu-table">
                     <thead class="thead-light">
                         <tr>
-                            <th class="text-center" style="width:36px;"><input type="checkbox" id="iu-semua" title="Pilih semua yang bisa dikirim"></th>
+                            <th class="text-center" style="width:36px;"><input type="checkbox" id="iu-semua" title="Pilih semua yang bisa dimutasi"></th>
                             <th>Obat</th>
                             <th class="text-right">Akan dipakai</th>
                             <th class="text-right">Stok apotek</th>
                             <th class="text-right">Kurang</th>
-                            <th class="text-right" style="width:150px;">Kirim</th>
+                            <th class="text-right" style="width:150px;">Jumlah mutasi</th>
                             <th>Keterangan</th>
                         </tr>
                     </thead>
@@ -109,10 +109,10 @@ $(function () {
 
     // One plain-language label per status; "tab" groups them for the filter
     var STATUS = {
-        transfer:    { label: 'Siap dikirim', cls: 'badge-success', tab: 'kirim' },
-        sebagian:    { label: 'Hanya sebagian', cls: 'badge-warning', tab: 'kirim' },
+        transfer:    { label: 'Bisa dimutasi', cls: 'badge-success', tab: 'kirim' },
+        sebagian:    { label: 'Mutasi sebagian', cls: 'badge-warning', tab: 'kirim' },
         gudang_lain: { label: 'Ada di gudang lain', cls: 'badge-info', tab: 'lain' },
-        pengadaan:   { label: 'Perlu dipesan', cls: 'badge-danger', tab: 'pesan' }
+        pengadaan:   { label: 'Stok habis', cls: 'badge-secondary', tab: 'pesan' }
     };
 
     function esc(value) {
@@ -164,11 +164,11 @@ $(function () {
             card('is-neutral', 'fa-user-friends', (r.kunjungan || 0), 'pasien terdaftar', esc(periode) + ' · ' + dihitung + ' dihitung'
                 + (r.tanpa_riwayat ? ', ' + r.tanpa_riwayat + ' pasien baru belum bisa diperkirakan' : ''))
             + card('is-warn', 'fa-exclamation-circle', state.rows.length, 'obat akan kurang', 'stok apotek tidak cukup')
-            + card('is-ok', 'fa-truck', count('kirim'), 'bisa dikirim', 'dari ' + esc(asal))
-            + card('is-bad', 'fa-shopping-cart', count('pesan'), 'perlu dipesan', 'kosong di semua gudang')
+            + card('is-ok', 'fa-truck', count('kirim'), 'bisa dimutasi', 'dari ' + esc(asal))
+            + card('is-bad', 'fa-ban', count('pesan'), 'tidak bisa dimutasi', 'stok habis di semua gudang')
         );
 
-        var tabs = [['semua', 'Semua'], ['kirim', 'Bisa dikirim'], ['lain', 'Ada di gudang lain'], ['pesan', 'Perlu dipesan']];
+        var tabs = [['semua', 'Semua'], ['kirim', 'Bisa dimutasi'], ['lain', 'Ada di gudang lain'], ['pesan', 'Stok habis']];
         if (!tabs.some(function (t) { return t[0] === state.tab && (t[0] === 'semua' || count(t[0]) > 0); })) state.tab = 'semua';
         $('#iu-tabs').html(tabs.filter(function (t) { return t[0] === 'semua' || count(t[0]) > 0; }).map(function (t) {
             return '<li class="nav-item"><a class="nav-link' + (state.tab === t[0] ? ' active' : '') + '" href="#" data-tab="' + t[0] + '">'
@@ -181,8 +181,8 @@ $(function () {
         var lain = (row.gudang_lain || []).map(function (g) { return esc(g.nama) + ' ' + fmt(g.stok); }).join(', ');
         if (row.status === 'transfer') return 'Stok ' + esc(asal) + ' ' + fmt(row.stok_asal);
         if (row.status === 'sebagian') return esc(asal) + ' hanya punya ' + fmt(row.stok_asal) + ', masih kurang ' + bulat(row.kurang - row.saran);
-        if (row.status === 'gudang_lain') return 'Tidak ada di ' + esc(asal) + '. Ada di: ' + lain;
-        return 'Tidak ada stok di gudang mana pun';
+        if (row.status === 'gudang_lain') return 'Tidak ada di ' + esc(asal) + '. Ganti "Mutasi dari" ke: ' + lain;
+        return 'Tidak ada stok di gudang mana pun untuk dimutasi';
     }
 
     function render() {
@@ -212,7 +212,7 @@ $(function () {
                 + '<td class="text-right" title="' + esc(sumber.join('\n')) + '">' + bulat(row.kebutuhan) + ' <small class="text-muted">' + esc(row.satuan || '') + '</small>'
                 +   (row.pasti > 0 ? '<div><small class="text-primary">' + bulat(row.pasti) + ' sudah diresepkan</small></div>' : '') + '</td>'
                 + '<td class="text-right">' + fmt(row.stok_resep)
-                +   (row.dalam_transfer > 0 ? '<div><small class="text-info">+' + fmt(row.dalam_transfer) + ' sedang dikirim</small></div>' : '') + '</td>'
+                +   (row.dalam_transfer > 0 ? '<div><small class="text-info">+' + fmt(row.dalam_transfer) + ' mutasi menunggu approval</small></div>' : '') + '</td>'
                 + '<td class="text-right iu-kurang">' + bulat(row.kurang) + '</td>'
                 + '<td class="text-right">' + (bisaPilih
                         ? '<input type="number" class="form-control form-control-sm text-right iu-jumlah" min="1" max="' + row.stok_asal + '" step="1" value="' + row.saran + '">'
@@ -265,11 +265,11 @@ $(function () {
         var $btn = $(this);
         Swal.fire({
             icon: 'question',
-            title: 'Kirim ' + items.length + ' obat ke apotek?',
+            title: 'Mutasi ' + items.length + ' obat ke apotek?',
             html: '<strong>' + esc(state.gudangAsal.nama) + '</strong> &rarr; <strong>' + esc(state.gudangResep.nama) + '</strong><br>'
                 + 'Dibuat sebagai Transfer Antar Gudang. Stok baru pindah setelah disetujui.',
             showCancelButton: true,
-            confirmButtonText: 'Ya, buat transfer',
+            confirmButtonText: 'Ya, buat mutasi',
             cancelButtonText: 'Batal'
         }).then(function (result) {
             if (!result.value) return;
@@ -281,7 +281,7 @@ $(function () {
             }).done(function (res) {
                 Swal.fire({
                     icon: 'success',
-                    title: 'Transfer diajukan',
+                    title: 'Mutasi diajukan',
                     html: esc(res.message) + '<div class="mt-3"><a href="{{ url('/erm/mutasi-gudang') }}" class="btn btn-sm btn-primary">Buka Transfer Antar Gudang</a></div>'
                 });
                 load();
@@ -299,7 +299,7 @@ $(function () {
 </script>
 @endpush
 
-@push('styles')
+@section('styles')
 <style>
 .iu-page { --iu-line: #e2e8f0; --iu-muted: #64748b; --iu-text: #1e293b; --iu-bg: #f8fafc;
     --iu-ok: #059669; --iu-warn: #d97706; --iu-bad: #dc2626; --iu-neutral: #2563eb; }
@@ -328,4 +328,4 @@ html.theme-dark .iu-page { --iu-line: #334155; --iu-muted: #94a3b8; --iu-text: #
 #iu-table .iu-jumlah { min-width: 84px; }
 #iu-table .iu-kurang { color: var(--iu-bad); font-weight: 800; }
 </style>
-@endpush
+@endsection
