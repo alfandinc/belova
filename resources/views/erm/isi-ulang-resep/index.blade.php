@@ -56,6 +56,7 @@
                         Pasien yang sudah punya resep dihitung dari resepnya. Pasien yang belum diperiksa dihitung dari rata-rata obat pada {{ $riwayatKunjungan }} kunjungan terakhirnya yang ada resep, di klinik yang sama.</li>
                     <li>Pasien baru (belum pernah dapat resep di klinik itu dalam setahun) belum bisa diperkirakan, jadi tidak dihitung.</li>
                     <li><strong>Kurang</strong> = akan dipakai − stok apotek − transfer yang masih menunggu approval. Angka dibulatkan ke atas.</li>
+                    <li>Mutasi dari gudang utama (gudang penerima faktur pembelian) dibulatkan ke atas per box, memakai isi box di master pembelian. Bila stok gudang utama kurang dari itu, yang disarankan adalah semua sisanya.</li>
                     <li>Halaman ini hanya membuat mutasi antar gudang (Transfer Antar Gudang), tetap harus disetujui di sana. Obat yang stoknya habis di semua gudang hanya ditampilkan sebagai informasi.</li>
                 </ul>
             </details>
@@ -136,6 +137,7 @@ $(function () {
                 state.gudangResep = res.gudang_resep;
                 state.gudangAsal = res.gudang_asal;
                 state.ringkasan = res.ringkasan || {};
+                state.perBox = !!res.per_box;
                 state.periode = res.periode || {};
                 renderSummary();
                 render();
@@ -174,6 +176,17 @@ $(function () {
             return '<li class="nav-item"><a class="nav-link' + (state.tab === t[0] ? ' active' : '') + '" href="#" data-tab="' + t[0] + '">'
                 + t[1] + ' <span class="badge badge-light ml-1">' + count(t[0]) + '</span></a></li>';
         }).join(''));
+    }
+
+    // Gudang utama only: "3 box × 100" under the jumlah; a warning when it is not whole boxes;
+    // "isi box belum diatur" when master pembelian has no box size for the obat
+    function boxInfo(jumlah, isiBox) {
+        if (!state.perBox) return '';
+        if (!isiBox) return '<span class="text-muted">isi box belum diatur</span>';
+        jumlah = Number(jumlah) || 0;
+        var box = jumlah / isiBox;
+        if (Math.abs(box - Math.round(box)) < 0.0001) return Math.round(box) + ' box × ' + fmt(isiBox);
+        return '<span class="iu-box-warn">' + fmt(Math.floor(box)) + ' box + ' + fmt(jumlah - Math.floor(box) * isiBox) + ' ecer (isi ' + fmt(isiBox) + ')</span>';
     }
 
     function keterangan(row) {
@@ -215,7 +228,9 @@ $(function () {
                 +   (row.dalam_transfer > 0 ? '<div><small class="text-info">+' + fmt(row.dalam_transfer) + ' mutasi menunggu approval</small></div>' : '') + '</td>'
                 + '<td class="text-right iu-kurang">' + bulat(row.kurang) + '</td>'
                 + '<td class="text-right">' + (bisaPilih
-                        ? '<input type="number" class="form-control form-control-sm text-right iu-jumlah" min="1" max="' + row.stok_asal + '" step="1" value="' + row.saran + '">'
+                        ? '<input type="number" class="form-control form-control-sm text-right iu-jumlah" min="1" max="' + row.stok_asal + '" step="' + (row.isi_box || 1) + '" value="' + row.saran + '"'
+                            + (row.isi_box ? ' data-isi-box="' + row.isi_box + '"' : '') + '>'
+                            + '<div class="iu-box-info">' + boxInfo(row.saran, row.isi_box) + '</div>'
                         : '<span class="text-muted">-</span>') + '</td>'
                 + '<td><span class="badge ' + st.cls + '">' + st.label + '</span><div><small class="text-muted">' + keterangan(row) + '</small></div></td>'
                 + '</tr>';
@@ -257,6 +272,9 @@ $(function () {
         updateTerpilih();
     });
     $('#iu-body').on('change input', '.iu-pilih, .iu-jumlah', updateTerpilih);
+    $('#iu-body').on('input change', '.iu-jumlah', function () {
+        $(this).siblings('.iu-box-info').html(boxInfo($(this).val(), Number($(this).data('isi-box')) || null));
+    });
 
     $('#btn-buat-transfer').on('click', function () {
         // Only the rows on screen (tab + search) are sent, so the confirmation says how many
@@ -277,7 +295,8 @@ $(function () {
             return '<tr' + (sisaAsal < -0.0001 ? ' class="iu-pv-error"' : '') + '>'
                 + '<td class="text-muted">' + (i + 1) + '</td>'
                 + '<td class="text-left">' + esc(r.nama) + '</td>'
-                + '<td class="text-right font-weight-bold">' + fmt(it.jumlah) + ' <small class="text-muted">' + esc(r.satuan || '') + '</small></td>'
+                + '<td class="text-right font-weight-bold">' + fmt(it.jumlah) + ' <small class="text-muted">' + esc(r.satuan || '') + '</small>'
+                +   (state.perBox && r.isi_box ? '<div class="iu-box-info">' + boxInfo(it.jumlah, r.isi_box) + '</div>' : '') + '</td>'
                 + '<td class="text-right">' + fmt(r.stok_asal) + ' &rarr; ' + fmt(sisaAsal) + '</td>'
                 + '<td class="text-right">' + fmt(r.stok_resep) + ' &rarr; ' + fmt(apotekSetelah)
                 +   (cukup ? '' : ' <span class="iu-pv-kurang" title="Masih kurang dari yang akan dipakai (' + bulat(r.kebutuhan) + ')">masih kurang</span>') + '</td>'
@@ -357,6 +376,8 @@ html.theme-dark .iu-page { --iu-line: #334155; --iu-muted: #94a3b8; --iu-text: #
 .iu-tabs .nav-link { padding: .3rem .75rem; font-size: .85rem; }
 #iu-table td { vertical-align: middle; }
 #iu-table .iu-jumlah { min-width: 84px; }
+.iu-box-info { font-size: .72rem; color: var(--iu-muted, #64748b); white-space: nowrap; margin-top: 2px; }
+.iu-box-warn { color: var(--iu-warn, #d97706); font-weight: 700; }
 #iu-table .iu-kurang { color: var(--iu-bad); font-weight: 800; }
 
 /* Preview modal (SweetAlert): wide table, scrolls when many obat are selected */

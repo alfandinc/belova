@@ -52,6 +52,8 @@
     <link rel="stylesheet" href="{{ asset('css/custom.css') }}">
 
     @yield('styles')
+    {{-- Pages may also add CSS with @push('styles') --}}
+    @stack('styles')
 
     <style>
         body { visibility: hidden; }

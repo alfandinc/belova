@@ -150,6 +150,41 @@ class StokResepService
         return $resep->racikan_ke ? self::stokDikurangiRacikan($resep) : (float) ($resep->jumlah ?? 0);
     }
 
+    /**
+     * The gudang utama = the gudang most faktur pembelian items are received into (no setting needed);
+     * null when no faktur has a gudang yet.
+     */
+    public function gudangUtamaId(): ?int
+    {
+        $id = DB::table('erm_fakturbeli_items')
+            ->whereNotNull('gudang_id')
+            ->groupBy('gudang_id')
+            ->orderByRaw('COUNT(*) DESC')
+            ->value('gudang_id');
+
+        return $id ? (int) $id : null;
+    }
+
+    /** Box size per obat from master pembelian (erm_master_faktur.qty_per_box, latest row of the obat): [obat_id => int]. */
+    public function isiBoxMasterPembelian(array $obatIds): array
+    {
+        if (!$obatIds) {
+            return [];
+        }
+        $isi = [];
+        foreach (array_chunk($obatIds, 1000) as $ids) {
+            DB::table('erm_master_faktur')
+                ->whereIn('obat_id', $ids)
+                ->where('qty_per_box', '>', 1)
+                ->orderBy('updated_at')
+                ->orderBy('id')
+                ->get(['obat_id', 'qty_per_box'])
+                ->each(function ($r) use (&$isi) { $isi[(int) $r->obat_id] = (int) $r->qty_per_box; });
+        }
+
+        return $isi;
+    }
+
     /** Of the given gudangs, the one holding the most different obat (the gudang utama in practice). */
     private function gudangTerbanyakObat(array $gudangIds): ?int
     {
@@ -198,6 +233,7 @@ class StokResepService
         $hasil = [
             'gudang_resep' => $resepId ? ['id' => $resepId, 'nama' => Gudang::where('id', $resepId)->value('nama')] : null,
             'gudang_asal' => null,
+            'per_box' => false,
             'gudang_pilihan' => $gudangLain->map(fn ($g) => ['id' => (int) $g->id, 'nama' => $g->nama])->all(),
             'params' => $params,
             'periode' => ['mulai' => $mulai->format('d/m/Y'), 'sampai' => $sampai->format('d/m/Y')],
@@ -256,6 +292,12 @@ class StokResepService
         $obats = Obat::whereIn('id', array_keys($kurang))->get(['id', 'nama', 'kode_obat', 'satuan', 'satuan_stok'])->keyBy('id');
         $stokLain = $this->stokGudangLain(array_keys($kurang));
 
+        // From the gudang utama (where purchases are received) stok leaves in whole boxes: the master pembelian
+        // box size rounds the saran up; other gudangs (kabin, marketing) hold loose stok and are not rounded
+        $perBox = $asalId !== null && $asalId === $this->gudangUtamaId();
+        $hasil['per_box'] = $perBox;
+        $isiBox = $perBox ? $this->isiBoxMasterPembelian(array_keys($kurang)) : [];
+
         foreach ($kurang as $obatId => $k) {
             $obat = $obats->get($obatId);
             if (!$obat) {
@@ -266,7 +308,13 @@ class StokResepService
             $lain['gudang'] = array_values(array_filter($lain['gudang'], fn ($g) => $g['stok'] > 0));
             $stokAsal = (float) (collect($lain['gudang'])->firstWhere('id', $asalId)['stok'] ?? 0);
             $selisih = $k['kebutuhan'] - $k['stok'] - $k['transfer'];
-            $saran = min(ceil($selisih - 0.0001), floor($stokAsal));
+            $box = $isiBox[$obatId] ?? null;
+            $butuh = ceil($selisih - 0.0001);
+            if ($box) {
+                // Whole boxes; when the gudang asal has less than that, all it has (the last, opened box)
+                $butuh = ceil($butuh / $box) * $box;
+            }
+            $saran = min($butuh, floor($stokAsal));
 
             if ($saran > 0 && $saran >= $selisih - 0.0001) {
                 $status = 'transfer';
@@ -293,6 +341,7 @@ class StokResepService
                 'stok_asal' => round($stokAsal, 2),
                 'stok_lain' => $lain['total'],
                 'gudang_lain' => $lain['gudang'],
+                'isi_box' => $box,
                 'saran' => (float) max(0, $saran),
                 'status' => $status,
             ];
