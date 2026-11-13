@@ -1206,19 +1206,21 @@ class RawatJalanController extends Controller
                     if ($suratLabels) {
                         $isiItems[] = ['fas fa-envelope-open-text', 'Surat ' . implode(', ', $suratLabels), 0, 'surat'];
                     }
-                    if (!$isiItems) {
-                        return '<span class="text-muted">-</span>';
+                    if (!$isiItems && $tanpaInformConsent === 0) {
+                        return ''; // the Tahap Pelayanan line above is enough
                     }
 
+                    // Icon only (the stage badge above carries the text); the name is in the tooltip, a count as a small number
                     $html = '<div class="rj-isi-kunjungan">';
                     foreach ($isiItems as [$icon, $label, $count, $kind]) {
-                        $html .= '<span class="rj-isi-chip rj-isi-' . $kind . '"><i class="' . $icon . '"></i>' . e($label)
-                            . ($count > 0 ? ' <b>' . $count . '</b>' : '') . '</span>';
+                        $tooltip = $label . ($count > 0 ? ': ' . $count : '') . ($kind === 'lab' ? ' (belum selesai)' : '');
+                        $html .= '<span class="rj-isi-chip rj-isi-' . $kind . '" title="' . e($tooltip) . '" aria-label="' . e($tooltip) . '">'
+                            . '<i class="' . $icon . '"></i>' . ($count > 1 ? '<b>' . $count . '</b>' : '') . '</span>';
                     }
                     if ($tanpaInformConsent > 0) {
-                        $html .= '<a href="' . route('erm.tindakan.create', $v->id) . '" class="rj-isi-chip rj-isi-ic-warning" title="' . $tanpaInformConsent
-                            . ' tindakan belum diisi inform consent. Klik untuk mengisi."><i class="fas fa-exclamation-triangle"></i>Inform consent belum diisi <b>'
-                            . $tanpaInformConsent . '</b></a>';
+                        $tooltip = $tanpaInformConsent . ' tindakan belum diisi inform consent. Klik untuk mengisi.';
+                        $html .= '<a href="' . route('erm.tindakan.create', $v->id) . '" class="rj-isi-chip rj-isi-ic-warning" title="' . e($tooltip) . '" aria-label="' . e($tooltip) . '">'
+                            . '<i class="fas fa-file-signature"></i>' . ($tanpaInformConsent > 1 ? '<b>' . $tanpaInformConsent . '</b>' : '') . '</a>';
                     }
                     return $html . '</div>';
                 })

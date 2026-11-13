@@ -42,8 +42,10 @@
         .billing-stats .bstat[data-status]:hover, .billing-stats .bstat.active { background: rgba(128,128,128,.1); }
         .billing-stats .bstat-label { font-size: 11px; text-transform: uppercase; letter-spacing: .03em; opacity: .75; }
         .billing-stats .bstat-value { font-weight: 700; font-size: 1rem; line-height: 1.3; white-space: nowrap; }
-        .billing-stats .bstat-sub { font-size: 12px; opacity: .75; white-space: nowrap; }
+        .billing-stats .bstat-sub { font-size: 12px; opacity: .75; }
     </style>
+    {{-- Alur Pelayanan on top, same as Rawat Jalan / E-Resep --}}
+    <div data-alur-strip="card"></div>
     <div class="card shadow-sm mb-2">
         <div class="billing-stats">
             <div class="bstat" style="border-left-color:#007bff;">
@@ -54,22 +56,22 @@
             <div class="bstat" data-status="belum" style="border-left-color:#dc3545;" title="Tampilkan Belum Transaksi">
                 <div class="bstat-label">Belum Transaksi</div>
                 <div class="bstat-value"><span data-stat="kunjungan">-</span> kunjungan</div>
-                <div class="bstat-sub">belum diproses kasir</div>
+                <div class="bstat-sub" data-stat="tahap">belum diproses kasir</div>
             </div>
             <div class="bstat" data-status="belum_lunas" style="border-left-color:#ffc107;" title="Tampilkan Belum Lunas">
                 <div class="bstat-label">Belum Lunas</div>
                 <div class="bstat-value" data-stat="total">-</div>
-                <div class="bstat-sub"><span data-stat="jumlah">-</span> invoice</div>
+                <div class="bstat-sub"><span data-stat="jumlah">-</span> invoice<span data-stat="tahap"></span></div>
             </div>
             <div class="bstat" data-status="piutang" style="border-left-color:#17a2b8;" title="Tampilkan Piutang">
                 <div class="bstat-label">Piutang</div>
                 <div class="bstat-value" data-stat="total">-</div>
-                <div class="bstat-sub"><span data-stat="jumlah">-</span> invoice</div>
+                <div class="bstat-sub"><span data-stat="jumlah">-</span> invoice<span data-stat="tahap"></span></div>
             </div>
             <div class="bstat" data-status="sudah" style="border-left-color:#28a745;" title="Tampilkan Lunas">
                 <div class="bstat-label">Lunas</div>
                 <div class="bstat-value" data-stat="total">-</div>
-                <div class="bstat-sub"><span data-stat="jumlah">-</span> invoice</div>
+                <div class="bstat-sub"><span data-stat="jumlah">-</span> invoice<span data-stat="tahap"></span></div>
             </div>
         </div>
     </div>
@@ -192,6 +194,7 @@
                                     <thead class="thead-light">
                                         <tr>
                                             <th>Nomor Invoice</th>
+                                            <th>Status</th>
                                             <th>Nama Pasien</th>
                                             <th>Dokter</th>
                                             <th>Tanggal Visit</th>
@@ -212,6 +215,7 @@
                                     <thead class="thead-light">
                                         <tr>
                                             <th>Nomor Invoice</th>
+                                            <th>Status</th>
                                             <th>Nama Pasien</th>
                                             <th>Dokter</th>
                                             <th>Tanggal Visit</th>
@@ -281,6 +285,7 @@
 
 @section('scripts')
 <script src="{{ asset('dastone/vendor/datatable/FixedColumns-4.3.0/js/dataTables.fixedColumns.min.js') }}"></script>
+@include('erm.partials.alur-pelayanan')
 <script>
     $(document).ready(function() {
         // Set up date variables
@@ -467,6 +472,8 @@
         function createBillingTable($selector, metodeGroup, deferInitialLoad) {
             // A page click only changes the offset: tell the server so it can reuse the row counts
             var pageOnly = false;
+            // short Alur Pelayanan stage names for the stats cards (selesai left out)
+            var BILLING_TAHAP_SHORT = { sedang_dilayani: 'dilayani', tindakan: 'tindakan', menunggu_farmasi: 'di farmasi', menunggu_kasir: 'di kasir', menunggu_hasil_lab: 'tunggu lab' };
             $selector.on('page.dt', function() { pageOnly = true; });
 
             // Stats cards follow the visible tab's latest response (filters + search)
@@ -481,6 +488,13 @@
                     $box.find('[data-stat="total"]').text(formatRupiah(s.total_nominal || 0));
                     $box.find('[data-stat="jumlah"]').text(fmtNum(s.jumlah_invoice));
                     $box.find('[data-stat="kunjungan"]').text(fmtNum(s.kunjungan));
+                    // where these rows are in the Alur Pelayanan strip (open stages only)
+                    var parts = [];
+                    $.each(BILLING_TAHAP_SHORT, function(key, label) {
+                        var n = (s.tahap || {})[key] || 0;
+                        if (n) parts.push(fmtNum(n) + ' ' + label);
+                    });
+                    $box.find('[data-stat="tahap"]').text(parts.length ? (status === 'belum' ? '' : ' · ') + parts.join(' · ') : (status === 'belum' ? 'belum diproses kasir' : ''));
                 });
                 $('.billing-stats .bstat[data-status]').removeClass('active')
                     .filter('[data-status="' + statusFilter + '"]').addClass('active');
@@ -521,12 +535,12 @@
                 }
             },
             columnDefs: [
-                // make the dokter column wrap and allow flexible width (index 2)
-                { targets: 2, className: 'wrap-column', responsivePriority: 2 },
-                // keep action column no-wrap (index 8, after the Retur column)
-                { targets: 8, className: 'no-wrap-cell', responsivePriority: 1 },
-                // Metode Bayar (index 4) is only shown on the Asuransi tab; every Umum row is "Umum"
-                { targets: 4, visible: metodeGroup !== 'umum' }
+                // make the dokter column wrap and allow flexible width (index 3)
+                { targets: 3, className: 'wrap-column', responsivePriority: 2 },
+                // keep action column no-wrap (index 9, after the Retur column)
+                { targets: 9, className: 'no-wrap-cell', responsivePriority: 1 },
+                // Metode Bayar (index 5) is only shown on the Asuransi tab; every Umum row is "Umum"
+                { targets: 5, visible: metodeGroup !== 'umum' }
             ],
 
             columns: [
@@ -587,20 +601,24 @@
                             }
 
                             // Build invoice cell with invoice number + badge stacked, and a right-aligned three-dots dropdown
-                            var html = '<div class="invoice-cell d-flex align-items-center justify-content-between">';
-                            html += '<div class="invoice-left">';
-                            // klinik logo left of the invoice number (klinik_logo_url / nama_klinik are server-escaped)
+                            // Same layout as E-Resep: number / payment status / tahap (klinik_logo_url / nama_klinik are server-escaped)
                             var klinikLogo = row.klinik_logo_url
-                                ? '<img src="' + row.klinik_logo_url + '" alt="' + (row.nama_klinik || '') + '" title="' + (row.nama_klinik || '') + '" class="klinik-logo mr-2">'
+                                ? '<img src="' + row.klinik_logo_url + '" alt="' + (row.nama_klinik || '') + '" title="' + (row.nama_klinik || '') + '" class="klinik-logo">'
                                 : '';
-                            html += '<div class="d-flex align-items-center">' + klinikLogo + '<span class="font-weight-bold">' + escapeHtml(inv) + '</span></div>';
-                            if (badge) html += '<div class="mt-1">' + badge + '</div>';
+                            if ($.trim(inv) === '-') inv = '';
+                            var payLabel = badge ? $('<div>').html(badge).text() : '';
+                            var html = '<div class="invoice-cell alur-cell">';
+                            html += '<div class="alur-cell-id">' + klinikLogo + (inv ? '<span>' + escapeHtml(inv) + '</span>' : '<span class="text-muted font-weight-normal">Belum ada invoice</span>') + '</div>';
+                            if (payLabel) html += '<div class="alur-cell-meta">' + AlurPelayanan.payHtml(payLabel) + '</div>';
                             html += '</div>';
-
-                            html += '</div>'; // .invoice-cell
                             return html;
                         }
                         return data;
+                    }
+                },
+                // Tahap pelayanan (same as Rawat Jalan / E-Resep)
+                { data: null, name: 'alur', searchable: false, orderable: false, className: 'alur-col-status', render: function(data, type, row) {
+                        return type === 'display' ? AlurPelayanan.placeholder(row.id) : '';
                     }
                 },
                 { data: null, name: 'nama_pasien', render: function(data, type, row, meta) {
@@ -852,6 +870,17 @@
         billingTableUmum = createBillingTable($('#datatable-billing-umum'), 'umum');
         billingTableAsuransi = createBillingTable($('#datatable-billing-asuransi'), 'asuransi', true);
 
+        // Tahap Pelayanan strip + row badges (same as Rawat Jalan / E-Resep)
+        AlurPelayanan.init({
+            filters: function () {
+                // follow the visible tab so the strip counts the same visits as the table / cards
+                var group = ($('#billingTabs .nav-link.active').attr('id') === 'billing-tab-asuransi') ? 'asuransi' : 'umum';
+                return { start_date: startDate, end_date: endDate, dokter_id: dokterId || '', klinik_id: klinikId || '', metode_group: group };
+            }
+        });
+        AlurPelayanan.attach(billingTableUmum);
+        AlurPelayanan.attach(billingTableAsuransi);
+
         // Keep a global active pointer for lazy-loaded modal script compatibility
         window.billingTableUmum = billingTableUmum;
         window.billingTableAsuransi = billingTableAsuransi;
@@ -867,6 +896,7 @@
         // Adjust columns when switching tabs (DataTables needs this for hidden tables)
         $('#billingTabs a[data-toggle="tab"]').on('shown.bs.tab', function() {
             setActiveBillingTableGlobal();
+            AlurPelayanan.refresh();
             try {
                 var t = window.billingTable;
                 if (t) {

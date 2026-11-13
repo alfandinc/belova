@@ -849,7 +849,14 @@ var isDokter = {!! json_encode(!empty($isDokter)) !!};
                     }
                 }
             },
-            { data: 'isi_kunjungan', name: 'isi_kunjungan', searchable: false, orderable: false },
+            {
+                data: 'isi_kunjungan', name: 'isi_kunjungan', searchable: false, orderable: false, className: 'rj-col-status',
+                render: function (data, type, row) {
+                    if (type !== 'display' || !window.AlurPelayanan) return data;
+                    // Lab is already listed in the isi line, so the stage line leaves it out
+                    return AlurPelayanan.placeholder(row.id, { lab: false }) + (data || '');
+                }
+            },
                 {
                     data: 'nama_pasien',
                     name: 'nama_pasien',
@@ -1304,10 +1311,11 @@ var isDokter = {!! json_encode(!empty($isDokter)) !!};
             @endif
         ],
         createdRow: function(row, data, dataIndex) {
+    // Status colour only on the patient name (rawatjalans.css); the Status column shows the stage itself
     if (data.status_kunjungan == 2) {
-        $(row).css('color', 'orange'); 
+        $(row).addClass('rj-row-diperiksa');
     } else if (data.status_kunjungan == 1 && userRole === 'Perawat') {
-        $(row).css('color', 'yellow');
+        $(row).addClass('rj-row-menunggu');
     }
     // No color change for status_kunjungan == 1 and userRole === 'Dokter'
 }
@@ -1315,12 +1323,27 @@ var isDokter = {!! json_encode(!empty($isDokter)) !!};
 
     window.__rawatjalanTable = table;
 
+    // Tahap Pelayanan strip + row badges (same as Billing / E-Resep)
+    if (window.AlurPelayanan) {
+        AlurPelayanan.init({
+            filters: function () {
+                return {
+                    start_date: $('#filter_start_date').val(),
+                    end_date: $('#filter_end_date').val(),
+                    dokter_id: getRawatJalanDokterFilterValue(),
+                    klinik_id: getRawatJalanKlinikFilterValue()
+                };
+            }
+        });
+        AlurPelayanan.attach(table);
+    }
+
     // Chip counts come with every table load (they follow the date / dokter / klinik filters)
     table.on('xhr.dt', function (e, settings, json) {
         var counts = (json && json.jenis_counts) || {};
         $('#rj-jenis-chips .rj-jenis-chip').each(function () {
             var count = parseInt(counts[String($(this).data('jenis-filter'))] || 0, 10);
-            $(this).find('.rj-jenis-count').text('(' + count + ')');
+            $(this).find('.rj-jenis-count').text(count);
             // Empty types are hidden; Semua always stays
             $(this).toggleClass('is-empty', count === 0 && String($(this).data('jenis-filter')) !== '');
         });
@@ -1761,11 +1784,7 @@ function updateStats() {
         dokter_id: filterDokter,
         klinik_id: filterKlinik
     }, function(stats) {
-        // Update the statistics display
-        $('#stat-total').text(stats.total);
-        $('#stat-tidak-datang').text(stats.tidak_datang);
-        $('#stat-belum-diperiksa').text(stats.belum_diperiksa);
-        $('#stat-sudah-diperiksa').text(stats.sudah_diperiksa);
+        // Side counters of the Alur Pelayanan strip (the stage counts come from AlurPelayanan)
         $('#stat-dibatalkan').text(stats.dibatalkan);
         $('#stat-rujuk').text(typeof stats.rujuk !== 'undefined' ? stats.rujuk : 0);
         $('#stat-lab-permintaan').text(typeof stats.lab_permintaan !== 'undefined' ? stats.lab_permintaan : 0);

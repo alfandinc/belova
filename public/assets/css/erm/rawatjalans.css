@@ -805,41 +805,48 @@
     }
 }
 
-/* Isi Kunjungan column: what the visit already contains */
+/* Status column: the Tahap Pelayanan badge on top (alur-pelayanan partial), under it what the visit contains
+   as small icon tiles (name in the tooltip). Neutral grey; only an open lab request and a missing inform consent are red. */
+#rawatjalan-table_wrapper .rj-col-status {
+    min-width: 190px;
+}
 .rj-isi-kunjungan {
     display: flex;
     flex-wrap: wrap;
     gap: 4px;
 }
 .rj-isi-chip {
-    --isi: #64748b;
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    padding: 1px 8px;
-    border-radius: 999px;
-    border: 1px solid var(--isi);
-    color: var(--isi);
-    background: color-mix(in srgb, var(--isi) 10%, transparent);
+    justify-content: center;
+    gap: 3px;
+    min-width: 24px;
+    height: 22px;
+    padding: 0 6px;
+    border-radius: 6px;
     font-size: 11px;
-    font-weight: 600;
-    line-height: 18px;
+    line-height: 1;
     white-space: nowrap;
+    color: #64748b;
+    background: rgba(100, 116, 139, .12);
+    cursor: default;
 }
-.rj-isi-chip i { font-size: 10px; }
-.rj-isi-tindakan { --isi: #d97706; }
-.rj-isi-lab { --isi: #dc2626; }
-.rj-isi-lab-done { --isi: #16a34a; }
-.rj-isi-resep { --isi: #0891b2; }
-.rj-isi-rujuk { --isi: #7c3aed; }
-.rj-isi-surat { --isi: #2563eb; }
-:root.theme-dark .rj-isi-tindakan { --isi: #fbbf24; }
-:root.theme-dark .rj-isi-lab { --isi: #f87171; }
-:root.theme-dark .rj-isi-lab-done { --isi: #4ade80; }
-:root.theme-dark .rj-isi-resep { --isi: #22d3ee; }
-:root.theme-dark .rj-isi-rujuk { --isi: #a78bfa; }
-:root.theme-dark .rj-isi-surat { --isi: #60a5fa; }
-/* Tindakan added without its inform consent: filled red chip linking to the Tindakan page */
-.rj-isi-chip.rj-isi-ic-warning { --isi: #dc2626; background: var(--isi); color: #fff; text-decoration: none; }
-.rj-isi-chip.rj-isi-ic-warning:hover { filter: brightness(1.1); color: #fff; }
-:root.theme-dark .rj-isi-chip.rj-isi-ic-warning { --isi: #ef4444; }
+:root.theme-dark .rj-isi-chip { color: #cbd5e1; background: rgba(148, 163, 184, .16); }
+.rj-isi-chip i { font-size: 11px; }
+.rj-isi-chip b { font-size: 10px; font-weight: 700; font-variant-numeric: tabular-nums; }
+/* Lab done: neutral tile with a green icon */
+.rj-isi-chip.rj-isi-lab-done i { color: #16a34a; }
+:root.theme-dark .rj-isi-chip.rj-isi-lab-done i { color: #4ade80; }
+/* Open lab request / tindakan without inform consent */
+.rj-isi-chip.rj-isi-lab,
+.rj-isi-chip.rj-isi-ic-warning { color: #b91c1c; background: rgba(220, 53, 69, .14); text-decoration: none; }
+:root.theme-dark .rj-isi-chip.rj-isi-lab,
+:root.theme-dark .rj-isi-chip.rj-isi-ic-warning { color: #fca5a5; background: rgba(248, 113, 113, .2); }
+.rj-isi-chip.rj-isi-ic-warning { cursor: pointer; }
+.rj-isi-chip.rj-isi-ic-warning:hover { background: rgba(220, 53, 69, .24); }
+
+/* Status colour of the row, on the patient name only (was the whole row's text) */
+.rj-row-diperiksa .rawatjalan-patient-name-text { color: #d97706; }
+.rj-row-menunggu .rawatjalan-patient-name-text { color: #ca8a04; }
+:root.theme-dark .rj-row-diperiksa .rawatjalan-patient-name-text { color: #fbbf24; }
+:root.theme-dark .rj-row-menunggu .rawatjalan-patient-name-text { color: #fde047; }

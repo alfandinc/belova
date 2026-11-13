@@ -73,10 +73,64 @@
     </div><!--end row-->
     <!-- end page title end breadcrumb -->
 
-    <div class="row mb-3">
-        <div class="col-12">
-            <div class="rawatjalan-toolbar">
-                <div class="rawatjalan-toolbar-actions rawatjalan-toolbar-actions-left">
+    {{-- Lab/Rujuk/Visitation list modals are lazy-loaded on-demand --}}
+
+    {{-- Alur Pelayanan on top (shared with Billing / E-Resep); Lab / Rujuk / Batal stay as side counters (filled by updateStats) --}}
+    <div data-alur-strip="card">
+        <button type="button" class="alur-side stat-card-clickable" data-status="lab_permintaan">Lab <b id="stat-lab-permintaan">{{ $stats['lab_permintaan'] ?? 0 }}</b></button>
+        <button type="button" class="alur-side stat-card-clickable" data-status="rujuk">Rujuk <b id="stat-rujuk">{{ $stats['rujuk'] ?? 0 }}</b></button>
+        <button type="button" class="alur-side stat-card-clickable" data-status="dibatalkan">Batal <b id="stat-dibatalkan">{{ $stats['dibatalkan'] }}</b></button>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <style>
+                /* One compact filter bar: tanggal range | dokter | klinik */
+                .rj-filterbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin-bottom: 14px; }
+                .rj-filter { display: flex; flex-direction: column; min-width: 0; }
+                .rj-filter > label { font-size: 12px; font-weight: 500; text-transform: none; letter-spacing: 0; opacity: .7; margin-bottom: 4px; }
+                .rj-filter-tanggal { flex: 0 0 auto; }
+                .rj-filter-dokter { flex: 2 1 280px; }
+                .rj-filter-klinik { flex: 1 1 220px; }
+                .rj-daterange { display: flex; align-items: center; border: 1px solid rgba(128,128,128,.35); border-radius: 6px; overflow: hidden; }
+                .rj-daterange input { border: 0 !important; box-shadow: none !important; background: transparent; width: 150px; height: 36px; }
+                .rj-daterange span { opacity: .5; padding: 0 2px; }
+                .rj-filterbar .select2-container .select2-selection--single { height: 38px; }
+                .rj-filter-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; }
+                .rj-filter-actions .btn { height: 38px; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+                .rj-filter-dokter { flex: 2 1 220px; }
+                .rj-filter-klinik { flex: 1 1 180px; }
+            </style>
+            <div class="rj-filterbar">
+                <div class="rj-filter rj-filter-tanggal">
+                    <label for="filter_start_date">Tanggal</label>
+                    <div class="rj-daterange">
+                        <input type="date" id="filter_start_date" class="form-control" aria-label="Dari tanggal" />
+                        <span>–</span>
+                        <input type="date" id="filter_end_date" class="form-control" aria-label="Sampai tanggal" />
+                    </div>
+                </div>
+                {{-- Show dokter filter to everyone, but pre-select logged-in Dokter when available --}}
+                <div class="rj-filter rj-filter-dokter">
+                    <label for="filter_dokter">Dokter</label>
+                    <select id="filter_dokter" class="form-control select2">
+                        <option value="">Semua Dokter</option>
+                        @foreach($dokters as $dokter)
+                            <option value="{{ $dokter->id }}" {{ isset($defaultDokterId) && $defaultDokterId == $dokter->id ? 'selected' : '' }}>{{ $dokter->user->name }} - {{ $dokter->spesialisasi->nama }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="rj-filter rj-filter-klinik">
+                    <label for="filter_klinik">Klinik</label>
+                    <select id="filter_klinik" class="form-control select2">
+                        <option value="">Semua Klinik</option>
+                        @foreach($kliniks as $klinik)
+                            <option value="{{ $klinik->id }}">{{ $klinik->nama }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                {{-- Page actions sit on the filter row, aligned right --}}
+                <div class="rj-filter-actions">
                     <div class="btn-group" role="group" aria-label="Dokter room actions">
                         @if (auth()->user() && auth()->user()->hasRole('Dokter'))
                             <button id="btn-buka-pintu" class="btn btn-danger">
@@ -95,146 +149,12 @@
                             </button>
                         @endif
                     </div>
-                </div>
-
-                <div class="rawatjalan-toolbar-stats">
-                    <div class="stats-row">
-        <div class="stat-col">
-            <div class="card shadow-sm stat-card stat-card-clickable stat-theme-primary" data-status="total">
-                <div class="card-body stat-pill-body">
-                    <div class="stat-icon-shell">
-                        <div class="stat-icon">
-                            <i class="fas fa-users"></i>
-                        </div>
-                    </div>
-                    <div class="stat-pill-content">
-                        <div class="stat-label">Total</div>
-                            <div class="stat-number" id="stat-total">{{ $stats['total'] }}</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="stat-col">
-            <div class="card shadow-sm stat-card stat-card-clickable stat-theme-warning" data-status="belum_diperiksa">
-                <div class="card-body stat-pill-body">
-                    <div class="stat-icon-shell">
-                        <div class="stat-icon">
-                            <i class="fas fa-clock"></i>
-                        </div>
-                    </div>
-                    <div class="stat-pill-content">
-                        <div class="stat-label">Menunggu</div>
-                            <div class="stat-number" id="stat-belum-diperiksa">{{ $stats['belum_diperiksa'] }}</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="stat-col">
-            <div class="card shadow-sm stat-card stat-card-clickable stat-theme-success" data-status="sudah_diperiksa">
-                <div class="card-body stat-pill-body">
-                    <div class="stat-icon-shell">
-                        <div class="stat-icon">
-                            <i class="fas fa-check"></i>
-                        </div>
-                    </div>
-                    <div class="stat-pill-content">
-                        <div class="stat-label">Selesai</div>
-                            <div class="stat-number" id="stat-sudah-diperiksa">{{ $stats['sudah_diperiksa'] }}</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="stat-col">
-            <div class="card shadow-sm stat-card stat-card-clickable stat-theme-info" data-status="lab_permintaan">
-                <div class="card-body stat-pill-body">
-                    <div class="stat-icon-shell">
-                        <div class="stat-icon">
-                            <i class="fas fa-vials"></i>
-                        </div>
-                    </div>
-                    <div class="stat-pill-content">
-                        <div class="stat-label">Lab</div>
-                            <div class="stat-number" id="stat-lab-permintaan">{{ $stats['lab_permintaan'] ?? 0 }}</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="stat-col">
-            <div class="card shadow-sm stat-card stat-card-clickable stat-theme-purple" data-status="rujuk">
-                <div class="card-body stat-pill-body">
-                    <div class="stat-icon-shell">
-                        <div class="stat-icon">
-                            <i class="fas fa-share-alt"></i>
-                        </div>
-                    </div>
-                    <div class="stat-pill-content">
-                        <div class="stat-label">Rujuk</div>
-                            <div class="stat-number" id="stat-rujuk">{{ $stats['rujuk'] ?? 0 }}</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="stat-col">
-            <div class="card shadow-sm stat-card stat-card-clickable stat-theme-danger" data-status="dibatalkan">
-                <div class="card-body stat-pill-body">
-                    <div class="stat-icon-shell">
-                        <div class="stat-icon">
-                            <i class="fas fa-times"></i>
-                        </div>
-                    </div>
-                    <div class="stat-pill-content">
-                        <div class="stat-label">Batal</div>
-                            <div class="stat-number" id="stat-dibatalkan">{{ $stats['dibatalkan'] }}</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-                    </div>
-                </div>
-
-                <div class="rawatjalan-toolbar-actions rawatjalan-toolbar-actions-right">
                     <div class="btn-group" role="group" aria-label="Rawat jalan actions">
-                        <button type="button" class="btn btn-success" id="btn-queue-calendar">
+                        <button type="button" class="btn btn-primary" id="btn-queue-calendar">
                             <i class="fas fa-calendar-alt"></i> Antrian
                         </button>
                         @include('erm.partials.daftar-kunjungan-dropdown')
                     </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    {{-- Lab/Rujuk/Visitation list modals are lazy-loaded on-demand --}}
-
-    <div class="card">
-        <div class="card-body">
-            <div class="row mb-3">
-                <div class="col-md-2">
-                    <label for="filter_start_date">Start Date</label>
-                    <input type="date" id="filter_start_date" class="form-control" />
-                </div>
-                <div class="col-md-2">
-                    <label for="filter_end_date">End Date</label>
-                    <input type="date" id="filter_end_date" class="form-control" />
-                </div>
-                {{-- Show dokter filter to everyone, but pre-select logged-in Dokter when available --}}
-                <div class="col-md-4">
-                    <label for="filter_dokter">Filter Dokter</label>
-                    <select id="filter_dokter" class="form-control select2">
-                        <option value="">Semua Dokter</option>
-                        @foreach($dokters as $dokter)
-                            <option value="{{ $dokter->id }}" {{ isset($defaultDokterId) && $defaultDokterId == $dokter->id ? 'selected' : '' }}>{{ $dokter->user->name }} - {{ $dokter->spesialisasi->nama }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div class="col-md-4">
-                    <label for="filter_klinik">Filter Klinik</label>
-                    <select id="filter_klinik" class="form-control select2">
-                        <option value="">Semua Klinik</option>
-                        @foreach($kliniks as $klinik)
-                            <option value="{{ $klinik->id }}">{{ $klinik->nama }}</option>
-                        @endforeach
-                    </select>
                 </div>
             </div>
             {{-- Jenis kunjungan filter: outlined until chosen, filled when chosen (--chip = jenis colour); count from the server --}}
@@ -242,11 +162,16 @@
                 $jenisChipColors = \App\Models\ERM\Visitation::TYPE_COLORS;
             @endphp
             <style>
-                .rj-jenis-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-                .rj-jenis-chip { border: 1px solid var(--chip); color: var(--chip); background: transparent; font-weight: 600; border-radius: 999px; padding: 3px 12px; font-size: 0.8rem; }
-                .rj-jenis-chip:hover { color: var(--chip); background: rgba(148, 163, 184, .15); }
-                .rj-jenis-chip.active, .rj-jenis-chip.active:hover { background: var(--chip); color: #fff; }
-                .rj-jenis-chip .rj-jenis-count { margin-left: 4px; opacity: .8; }
+                /* Neutral chips: the jenis colour is only a dot; the chosen one gets a light tint of it */
+                .rj-jenis-chips { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 12px; border-top: 1px solid rgba(128,128,128,.18); }
+                .rj-jenis-chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid rgba(128,128,128,.28); color: inherit; background: transparent;
+                    font-weight: 500; border-radius: 6px; padding: 3px 10px; font-size: 0.8rem; box-shadow: none !important; }
+                .rj-jenis-chip::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--chip); }
+                .rj-jenis-chip[data-jenis-filter=""]::before { display: none; }
+                .rj-jenis-chip:hover { color: inherit; background: rgba(128,128,128,.10); }
+                .rj-jenis-chip.active, .rj-jenis-chip.active:hover { color: inherit; font-weight: 600; border-color: var(--chip);
+                    background: rgba(128,128,128,.12); background: color-mix(in srgb, var(--chip) 14%, transparent); }
+                .rj-jenis-chip .rj-jenis-count { margin-left: 0; opacity: .55; font-variant-numeric: tabular-nums; }
                 .rj-jenis-chip.is-empty:not(.active) { display: none; }
             </style>
             <div class="rj-jenis-chips mb-3" id="rj-jenis-chips" role="group" aria-label="Filter jenis kunjungan">
@@ -288,6 +213,7 @@
 
 @section('scripts')
 <script src="{{ asset('dastone/vendor/datatable/FixedColumns-4.3.0/js/dataTables.fixedColumns.min.js') }}"></script>
+@include('erm.partials.alur-pelayanan')
 <script src="{{ route('erm.rawatjalans.assets.js') }}?v={{ filemtime(resource_path('views/erm/rawatjalans/assets/index_js.blade.php')) }}"></script>
 @endsection
 

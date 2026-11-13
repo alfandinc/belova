@@ -5994,6 +5994,8 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             'kunjungan' => (int) ($row->kunjungan ?? 0),
             'jumlah_invoice' => (int) ($row->jumlah ?? 0),
             'total_nominal' => (float) ($row->total ?? 0),
+            // Same rows split by Alur Pelayanan stage, so the cards can be read against the strip
+            'tahap' => \App\Services\ERM\AlurPelayanan::countsForIds($visitationIds->toBase()),
         ];
     }
 
@@ -6089,13 +6091,11 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             // AND ensure they have at least one billing item (respect includeDeleted)
             $visitations->where(function($query) use ($includeDeleted) {
                 $query->where(function($q) {
+                          // Same rule as the row label (BillingRowFormatter) and the Alur Pelayanan strip:
+                          // nothing paid, not a piutang / asuransi invoice, not a processed Rp 0 invoice
                           $q->whereDoesntHave('invoice')
                             ->orWhereHas('invoice', function($iq) {
-                                  $iq->where('amount_paid', 0)
-                                     ->where(function($pm) {
-                                         $pm->whereNull('payment_method')
-                                            ->orWhere('payment_method', '');
-                                     });
+                                  $iq->whereRaw('NOT ' . \App\Services\ERM\AlurPelayanan::invoiceTransactedSql('finance_invoices'));
                             });
                       })
                       ->whereExists(function($sub) use ($includeDeleted) {
@@ -6191,19 +6191,8 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
      */
     private function applyMetodeGroupFilter($query, ?string $metodeGroup): void
     {
-        if ($metodeGroup === 'umum') {
-            $umumIds = MetodeBayar::where('is_asuransi', false)->pluck('id')->all();
-            $query->whereIn('erm_visitations.metode_bayar_id', $umumIds);
-        } elseif ($metodeGroup === 'asuransi') {
-            // same as "no (existing) metode bayar OR is_asuransi = true": everything except the non-asuransi ones
-            $nonAsuransiIds = MetodeBayar::where(function ($q) {
-                $q->where('is_asuransi', false)->orWhereNull('is_asuransi');
-            })->pluck('id')->all();
-            $query->where(function ($q) use ($nonAsuransiIds) {
-                $q->whereNull('erm_visitations.metode_bayar_id')
-                  ->orWhereNotIn('erm_visitations.metode_bayar_id', $nonAsuransiIds);
-            });
-        }
+        // Shared with the Alur Pelayanan strip so both count the same tab
+        \App\Services\ERM\AlurPelayanan::applyMetodeGroup($query, $metodeGroup, 'erm_visitations.metode_bayar_id');
     }
 
     /**

@@ -18,18 +18,7 @@
             <div class="page-title-box">
                 <div class="row">
                     <div class="col">
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <h4 class="page-title mb-0">Daftar Resep Kunjungan Rawat Jalan</h4>
-                            <div>
-                                <button id="btn-statistik-resep" type="button" class="btn btn-outline-primary" style="min-width:110px;" title="Statistik resep sesuai filter">
-                                    <i class="fas fa-chart-bar mr-1"></i>Statistik
-                                </button>
-                                <button id="btn-old-notifs" type="button" class="btn btn-primary ml-2 text-center position-relative" style="min-width:110px;" title="Lihat Notifikasi Lama">
-                                    Notification
-                                    <span id="old-notifs-badge" class="badge badge-danger" style="display:none; position:absolute; top:-6px; right:-6px;">0</span>
-                                </button>
-                            </div>
-                        </div>
+                        <h4 class="page-title mb-2">Daftar Resep Kunjungan Rawat Jalan</h4>
                         <ol class="breadcrumb">
                             <li class="breadcrumb-item"><a href="javascript:void(0);">ERM</a></li>
                             <li class="breadcrumb-item active">Farmasi</li>
@@ -41,6 +30,9 @@
         </div><!--end col-->
     </div><!--end row-->
     <!-- end page title end breadcrumb -->
+
+    {{-- Alur Pelayanan on top, same as Rawat Jalan --}}
+    <div data-alur-strip="card"></div>
 
     <div class="card">
         <div class="card-body">
@@ -55,18 +47,32 @@
             #modalStatistikResep .stat-sub { font-size: .85rem; color: #6c757d; }
             #modalStatistikResep .stat-table td, #modalStatistikResep .stat-table th { padding: .4rem .6rem; }
             #modalStatistikResep.is-loading .stat-body { opacity: .45; pointer-events: none; }
+            /* One filter bar like Rawat Jalan: tanggal range | dokter | klinik | status resep | actions (right) */
+            .er-filterbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin-bottom: 14px; }
+            .er-filter { display: flex; flex-direction: column; min-width: 0; }
+            .er-filter > label { font-size: 12px; font-weight: 500; text-transform: none; letter-spacing: 0; opacity: .7; margin-bottom: 4px; }
+            .er-filter-tanggal { flex: 0 0 auto; }
+            .er-filter-dokter { flex: 2 1 200px; }
+            .er-filter-klinik { flex: 1 1 170px; }
+            .er-filter-status { flex: 1 1 150px; }
+            .er-daterange { display: flex; align-items: center; border: 1px solid rgba(128,128,128,.35); border-radius: 6px; overflow: hidden; }
+            .er-daterange input { border: 0 !important; box-shadow: none !important; background: transparent; width: 150px; height: 36px; }
+            .er-daterange span { opacity: .5; padding: 0 2px; }
+            .er-filterbar .select2-container .select2-selection--single { height: 38px; }
+            .er-filter-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; }
+            .er-filter-actions .btn { height: 38px; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
             </style>
-            <div class="row mb-3">
-                <div class="col-md-2">
-                    <label for="filter_tanggal_mulai">Start Date</label>
-                    <input type="date" id="filter_tanggal_mulai" class="form-control" />
+            <div class="er-filterbar">
+                <div class="er-filter er-filter-tanggal">
+                    <label for="filter_tanggal_mulai">Tanggal</label>
+                    <div class="er-daterange">
+                        <input type="date" id="filter_tanggal_mulai" class="form-control" aria-label="Dari tanggal" />
+                        <span>–</span>
+                        <input type="date" id="filter_tanggal_selesai" class="form-control" aria-label="Sampai tanggal" />
+                    </div>
                 </div>
-                <div class="col-md-2">
-                    <label for="filter_tanggal_selesai">End Date</label>
-                    <input type="date" id="filter_tanggal_selesai" class="form-control" />
-                </div>
-                <div class="col-md-3">
-                    <label for="filter_dokter">Filter Dokter</label>
+                <div class="er-filter er-filter-dokter">
+                    <label for="filter_dokter">Dokter</label>
                     <select id="filter_dokter" class="form-control select2">
                         <option value="">Semua Dokter</option>
                         @foreach($dokters as $dokter)
@@ -74,8 +80,8 @@
                         @endforeach
                     </select>
                 </div>
-                <div class="col-md-3">
-                    <label for="filter_klinik">Filter Klinik</label>
+                <div class="er-filter er-filter-klinik">
+                    <label for="filter_klinik">Klinik</label>
                     <select id="filter_klinik" class="form-control select2">
                         <option value="">Semua Klinik</option>
                         @foreach($kliniks as $klinik)
@@ -83,18 +89,29 @@
                         @endforeach
                     </select>
                 </div>
-                <div class="col-md-2">
+                <div class="er-filter er-filter-status">
                     <label for="filter_status_resep">Status Resep</label>
                     <select id="filter_status_resep" class="form-control select2">
                         <option value="0" selected>Belum Dilayani</option>
                         <option value="1">Sudah Dilayani</option>
                     </select>
                 </div>
+                {{-- Page actions sit on the filter row, aligned right --}}
+                <div class="er-filter-actions">
+                    <button id="btn-statistik-resep" type="button" class="btn btn-outline-primary" title="Statistik resep sesuai filter">
+                        <i class="fas fa-chart-bar"></i> Statistik
+                    </button>
+                    <button id="btn-old-notifs" type="button" class="btn btn-primary position-relative" title="Lihat Notifikasi Lama">
+                        <i class="fas fa-bell"></i> Notification
+                        <span id="old-notifs-badge" class="badge badge-danger" style="display:none; position:absolute; top:-6px; right:-6px;">0</span>
+                    </button>
+                </div>
             </div>
             <table class="table table-bordered w-100" id="rawatjalan-table">
                 <thead>
                     <tr>
                         <th>No Resep</th>
+                        <th>Status</th>
                         <th>Nama Pasien</th>
                         <th>Informasi Pasien</th>
                         <th>Alergi</th>
@@ -221,6 +238,7 @@
 
 @section('scripts')
 <script src="{{ asset('dastone/vendor/datatable/FixedColumns-4.3.0/js/dataTables.fixedColumns.min.js') }}"></script>
+@include('erm.partials.alur-pelayanan')
 <script>
 $(document).ready(function () {
     // Default date filter: today (same Start/End Date inputs as the Rawat Jalan page)
@@ -261,7 +279,7 @@ $(document).ready(function () {
                 d.status_resep = $('#filter_status_resep').val();
             }
         },
-        order: [[4, 'asc']], // Tanggal ASC
+        order: [[5, 'asc']], // Tanggal ASC
         columns: [
             {
                 data: 'no_resep',
@@ -269,27 +287,29 @@ $(document).ready(function () {
                 searchable: true,
                 orderable: false,
                 render: function(data, type, row) {
-                    // "Umum - Lunas" as coloured text: metode bayar (green for Umum, blue otherwise) - invoice status
+                    // Same layout as Billing: number / metode · payment status / tahap + stok tags in one row
                     var metode = $.trim(row.metode_bayar || '');
-                    var metodeHtml = metode ? '<span class="' + (metode === 'Umum' ? 'text-success' : 'text-info') + '">' + escapeHtml(metode) + '</span>' : '';
-                    // Invoice status uses the same labels as the Billing page
-                    var invoiceLabel = row.invoice_status || 'Belum Transaksi';
-                    var invoiceColor = {
-                        'Terhapus': '#6c757d',
-                        'Lunas': '#28a745',
-                        'Belum Lunas': '#d39e00', // darker than Billing's #ffc107 so it stays readable as text
-                        'Piutang': '#17a2b8'
-                    }[invoiceLabel] || '#dc3545';
-                    var invoiceHtml = '<span style="color:' + invoiceColor + ';">' + escapeHtml(invoiceLabel) + '</span>';
-                    var subLine = [metodeHtml, invoiceHtml].filter(Boolean).join(' - ');
-                    return '<div class="d-flex flex-column">'
-                        + '<div class="d-flex align-items-center">'
-                        + (row.klinik_logo_url ? '<img src="' + escapeHtml(row.klinik_logo_url) + '" alt="' + escapeHtml(row.nama_klinik || '') + '" title="' + escapeHtml(row.nama_klinik || '') + '" class="klinik-logo mr-2">' : '')
-                        + (data ? '<strong>' + escapeHtml(data) + '</strong>' : '<span class="text-muted">-</span>')
+                    return '<div class="alur-cell">'
+                        + '<div class="alur-cell-id">'
+                        + (row.klinik_logo_url ? '<img src="' + escapeHtml(row.klinik_logo_url) + '" alt="' + escapeHtml(row.nama_klinik || '') + '" title="' + escapeHtml(row.nama_klinik || '') + '" class="klinik-logo">' : '')
+                        + (data ? '<span>' + escapeHtml(data) + '</span>' : '<span class="text-muted">-</span>')
                         + '</div>'
-                        + (subLine ? '<small class="font-weight-bold mt-1">' + subLine + '</small>' : '')
-                        + stokKurangBadges(row)
+                        + '<div class="alur-cell-meta">'
+                        + (metode ? '<span class="alur-cell-muted">' + escapeHtml(metode) + '</span>' : '')
+                        + AlurPelayanan.payHtml(row.invoice_status)
+                        + '</div>'
                         + '</div>';
+                }
+            },
+            {
+                // Tahap pelayanan (same as Rawat Jalan) + stok tags
+                data: null,
+                name: 'alur',
+                searchable: false,
+                orderable: false,
+                className: 'alur-col-status',
+                render: function(data, type, row) {
+                    return AlurPelayanan.placeholder(row.id, { icons: stokKurangBadges(row) });
                 }
             },
             {
@@ -433,18 +453,32 @@ $(document).ready(function () {
         ],
         columnDefs: [
             { targets: 0, width: "200px" },  // No Resep
-            { targets: 1, width: "280px" },  // Nama Pasien
-            { targets: 2, width: "260px", className: "rawatjalan-col-informasi" },  // Informasi Pasien
-            { targets: 3, width: "200px" },  // Alergi
-            { targets: 4, width: "260px" },  // Tanggal
-            { targets: 5, width: "220px" },  // Dokter
-            { targets: 6, width: "200px" },  // Resep
+            { targets: 1, width: "190px" },  // Status (tahap pelayanan)
+            { targets: 2, width: "280px" },  // Nama Pasien
+            { targets: 3, width: "260px", className: "rawatjalan-col-informasi" },  // Informasi Pasien
+            { targets: 4, width: "200px" },  // Alergi
+            { targets: 5, width: "260px" },  // Tanggal
+            { targets: 6, width: "220px" },  // Dokter
+            { targets: 7, width: "200px" },  // Resep
         ],
     });
 
     table.on('draw.dt', function() {
         try { table.columns.adjust(); } catch (e) {}
     });
+
+    // Tahap Pelayanan strip + row badges (same as Rawat Jalan / Billing)
+    AlurPelayanan.init({
+        filters: function () {
+            return {
+                start_date: $('#filter_tanggal_mulai').val(),
+                end_date: $('#filter_tanggal_selesai').val(),
+                dokter_id: $('#filter_dokter').val() || '',
+                klinik_id: $('#filter_klinik').val() || ''
+            };
+        }
+    });
+    AlurPelayanan.attach(table);
     $(window).on('resize', function() {
         try { table.columns.adjust(); } catch (e) {}
     });
@@ -820,11 +854,11 @@ function stokKurangBadges(row) {
     var mutasi = parseInt(row.stok_perlu_mutasi, 10) || 0;
     var kosong = parseInt(row.stok_kosong, 10) || 0;
     if (!mutasi && !kosong) return '';
-    var title = escapeHtml((row.stok_kurang_detail || []).join('\n'));
-    var html = '<div class="mt-1" title="' + title + '">';
-    if (mutasi) html += '<span class="badge badge-warning mr-1"><i class="fas fa-truck mr-1"></i>Perlu transfer ' + mutasi + ' obat</span>';
-    if (kosong) html += '<span class="badge badge-danger"><i class="fas fa-exclamation-triangle mr-1"></i>Stok kosong ' + kosong + ' obat</span>';
-    return html + '</div>';
+    var detail = (row.stok_kurang_detail || []).join('\n');
+    var html = '';
+    if (mutasi) html += AlurPelayanan.iconHtml('fas fa-truck', 'Perlu transfer ' + mutasi + ' obat dari gudang lain\n' + detail, mutasi, 'warn');
+    if (kosong) html += AlurPelayanan.iconHtml('fas fa-exclamation-triangle', 'Stok kosong ' + kosong + ' obat\n' + detail, kosong, 'danger');
+    return html;
 }
 
 function escapeHtml(unsafe) {

@@ -663,6 +663,10 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::get('/visitations/referral-context', [VisitationController::class, 'referralContext'])->name('erm.visitations.referral-context');
     Route::get('/visitation/cek-antrian', [VisitationController::class, 'cekAntrian'])->name('erm.visitations.cekAntrian');
     Route::get('/rawatjalans/queue-calendar', [RawatJalanController::class, 'queueCalendar'])->name('erm.rawatjalans.queueCalendar');
+    // Tahap Pelayanan shared by Rawat Jalan, Billing and E-Resep
+    Route::get('/alur-pelayanan/summary', [\App\Http\Controllers\ERM\AlurPelayananController::class, 'summary'])->name('erm.alur-pelayanan.summary');
+    Route::get('/alur-pelayanan/list', [\App\Http\Controllers\ERM\AlurPelayananController::class, 'list'])->name('erm.alur-pelayanan.list');
+    Route::get('/alur-pelayanan/{visitation}/timeline', [\App\Http\Controllers\ERM\AlurPelayananController::class, 'timeline'])->name('erm.alur-pelayanan.timeline');
 });
 
 // Manajemen Stok, Transfer Antar Gudang & Penyesuaian Stok: the ERM roles plus Marketing
