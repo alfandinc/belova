@@ -204,17 +204,25 @@ class ImporWilayahKemendagri extends Command
     }
 
     /** New id under a parent with the old pattern: parent * 1000 + (largest suffix + 1). */
-    private function nextId(int $parentId, Collection $existing): int
+    private function nextId(string $table, int $parentId, Collection $existing): int
     {
         if (!isset($this->nextCache[$parentId])) {
             $this->nextCache[$parentId] = (int) $existing->max(fn($e) => $e->id % 1000);
         }
-        if (++$this->nextCache[$parentId] > 999) {
-            throw new \RuntimeException("Nomor ID penuh di bawah $parentId");
-        }
+        // Skip ids already taken anywhere in the table: a row may sit under another parent than its id suggests
+        do {
+            if (++$this->nextCache[$parentId] > 999) {
+                throw new \RuntimeException("Nomor ID penuh di bawah $parentId");
+            }
+            $id = $parentId * 1000 + $this->nextCache[$parentId];
+        } while (isset($this->usedIds[$table][$id]));
+        $this->usedIds[$table][$id] = true;
 
-        return $parentId * 1000 + $this->nextCache[$parentId];
+        return $id;
     }
+
+    /** [table => [id => true]] every id that exists or is planned, so a new id never collides */
+    private array $usedIds = [];
 
     private function buildPlan(array $kd): array
     {
@@ -224,6 +232,11 @@ class ImporWilayahKemendagri extends Command
         // Column from migration 2026_11_14_000001; without it the import still runs, codes are skipped
         $this->hasKode = \Illuminate\Support\Facades\Schema::hasColumn('area_villages', 'kode_kemendagri');
         $this->codes = [];
+        $this->nextCache = [];
+        $this->usedIds = [
+            'area_districts' => DB::table('area_districts')->pluck('id')->flip()->map(fn() => true)->all(),
+            'area_villages' => DB::table('area_villages')->pluck('id')->flip()->map(fn() => true)->all(),
+        ];
 
         // Kab/kota whose kecamatan / desa take the official spelling (only names that differ beyond case / spaces)
         $opt = (string) $this->option('ejaan-resmi');
@@ -327,7 +340,7 @@ class ImporWilayahKemendagri extends Command
                 $plan['disRename'][$best[0]->id] = $this->upper($name);
                 continue;
             }
-            $id = $this->nextId($rid, $cands);
+            $id = $this->nextId('area_districts', $rid, $cands);
             $disMap[$code] = $id;
             $plan['disInsert'][] = ['id' => $id, 'name' => $this->upper($name), 'regency_id' => $rid];
             $this->code('area_districts', $id, $code);
@@ -399,7 +412,7 @@ class ImporWilayahKemendagri extends Command
                 $plan['vilMove'][$moved->id] = $did;
                 continue;
             }
-            $id = $this->nextId($did, $vilByDis[$did] ?? collect());
+            $id = $this->nextId('area_villages', $did, $vilByDis[$did] ?? collect());
             $plan['vilInsert'][] = ['id' => $id, 'name' => $this->upper($name), 'district_id' => $did];
             $this->code('area_villages', $id, $code);
         }
