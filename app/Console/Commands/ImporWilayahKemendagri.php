@@ -109,6 +109,11 @@ class ImporWilayahKemendagri extends Command
         foreach (array_slice($plan['skipped'], 0, 20) as $line) {
             $this->line("  - $line");
         }
+        // Few code changes on an already-imported database: list them (all of them with -v)
+        $kodeLog = $plan['kodeLog'] ?? [];
+        if ($kodeLog && (count($kodeLog) <= 50 || $this->getOutput()->isVerbose())) {
+            foreach ($kodeLog as $line) $this->line("  kode: $line");
+        }
         foreach (array_merge($plan['disSpellLog'], $plan['vilSpellLog']) as $line) {
             $this->line("  ejaan: $line");
         }
@@ -428,7 +433,10 @@ class ImporWilayahKemendagri extends Command
             foreach ($this->codes as $table => $codes) {
                 $current = DB::table($table)->whereNotNull('kode_kemendagri')->pluck('kode_kemendagri', 'id');
                 foreach ($codes as $id => $code) {
-                    if (($current[$id] ?? null) !== $code) $plan['kode'][$table][$id] = $code;
+                    if (($current[$id] ?? null) !== $code) {
+                        $plan['kode'][$table][$id] = $code;
+                        $plan['kodeLog'][] = "$table $id: " . ($current[$id] ?? 'kosong') . " -> $code";
+                    }
                 }
             }
         }
