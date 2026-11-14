@@ -37,7 +37,44 @@ class SinkronKontrakKaryawan extends Command
                 }
                 $current = $active->first();
 
+                // Periods: end before start, or a contract still running when the next one starts (renewal overlap)
+                $byStart = $employee->contracts->sortBy('start_date')->values();
+                foreach ($byStart as $i => $contract) {
+                    $next = $byStart->get($i + 1);
+                    $period = $contract->start_date->toDateString() . ' – ' . $contract->end_date->toDateString();
+                    if ($contract->end_date->lt($contract->start_date)) {
+                        $rows[] = [$employee->id, $employee->nama, "Kontrak $period: berakhir sebelum mulai", 'Tanggal berakhir = tanggal mulai'];
+                        if ($fix) {
+                            $contract->update(['end_date' => $contract->start_date]);
+                        }
+                    } elseif ($next && $contract->status !== 'active' && $contract->end_date->gte($next->start_date)
+                        && $next->start_date->gt($contract->start_date)) {
+                        $rows[] = [$employee->id, $employee->nama, "Kontrak $period tumpang tindih dengan kontrak mulai {$next->start_date->toDateString()}",
+                            'Tanggal berakhir dipotong ke sehari sebelumnya'];
+                        if ($fix) {
+                            $contract->update(['end_date' => $next->start_date->copy()->subDay()]);
+                        }
+                    }
+                }
+
+                // Still active with nonaktif data from before scheduling existed: leftover, never carried out
+                if ($employee->status !== 'tidak aktif' && ($employee->nonaktif_alasan || $employee->nonaktif_tanggal)
+                    && !$employee->nonaktifTerjadwal()) {
+                    $rows[] = [$employee->id, $employee->nama, "Status {$employee->status} tetapi data nonaktif lama terisi ("
+                        . (optional($employee->nonaktif_tanggal)->toDateString() ?? 'tanpa tanggal') . ')', 'Data nonaktif dikosongkan'];
+                    if ($fix) {
+                        Employee::withInactive()->whereKey($employee->id)->update(['nonaktif_tanggal' => null, 'nonaktif_alasan' => null, 'nonaktif_keterangan' => null]);
+                    }
+                }
+
                 if ($employee->status !== 'kontrak') {
+                    // Only kontrak employees keep an end date (the model clears it on save from now on)
+                    if ($employee->kontrak_berakhir) {
+                        $rows[] = [$employee->id, $employee->nama, "Status {$employee->status} tetapi kontrak_berakhir terisi", 'kontrak_berakhir dikosongkan'];
+                        if ($fix) {
+                            Employee::withInactive()->whereKey($employee->id)->update(['kontrak_berakhir' => null]);
+                        }
+                    }
                     // Not kontrak but a contract still runs
                     if ($current) {
                         $rows[] = [$employee->id, $employee->nama, "Status {$employee->status} tetapi ada kontrak aktif", 'Kontrak diakhiri'];

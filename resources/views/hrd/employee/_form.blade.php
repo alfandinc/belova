@@ -205,6 +205,10 @@
                                     Kontrak: periode kontrak diisi setelah simpan.
                                 @endif
                             </small>
+                            @if($isEdit && $employee->nonaktifTerjadwal())
+                                <small class="form-text text-danger"><i class="fas fa-calendar-times mr-1"></i>Dijadwalkan nonaktif setelah {{ $employee->nonaktif_tanggal->format('d/m/Y') }}
+                                    ({{ \App\Models\HRD\Employee::NONAKTIF_ALASAN[$employee->nonaktif_alasan] ?? $employee->nonaktif_alasan }}). Batalkan lewat tombol <b>Kontrak</b>.</small>
+                            @endif
                         </div>
                         <div class="form-group col-md-6">
                             <label for="ef-tanggal_masuk">Tanggal masuk {!! $req !!}</label>
@@ -224,8 +228,11 @@
                                     </select>
                                 </div>
                                 <div class="form-group col-md-6">
-                                    <label for="ef-nonaktif_tanggal">Berlaku sejak {!! $req !!}</label>
+                                    <label for="ef-nonaktif_tanggal">Hari terakhir bekerja {!! $req !!}</label>
                                     <input type="date" id="ef-nonaktif_tanggal" name="nonaktif_tanggal" class="form-control" value="{{ $date('nonaktif_tanggal') ?? now()->format('Y-m-d') }}">
+                                    @if($isEdit && $employee->status !== 'tidak aktif')
+                                        <small class="form-text text-muted">Tanggal di depan: karyawan tetap aktif sampai hari itu, lalu otomatis tidak aktif.</small>
+                                    @endif
                                 </div>
                                 <div class="form-group col-12">
                                     <label for="ef-nonaktif_keterangan">Keterangan</label>

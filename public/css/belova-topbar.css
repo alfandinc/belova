@@ -31,7 +31,16 @@
     .emotion-board { display: flex; align-items: center; gap: 2px; min-width: 0; }
     .emotion-avatar-item { position: relative; display: inline-flex; width: 38px; height: 38px; border-radius: 50%; flex: 0 0 auto; z-index: 1; }
     .emotion-avatar-item:hover { z-index: 6; }
-    .emotion-avatar-item.is-current-user { cursor: pointer; }
+    .emotion-avatar-item.is-current-user, .emotion-avatar-item.js-view-user-photo { cursor: pointer; }
+    .emotion-avatar-item.js-view-user-photo:focus { outline: none; }
+    .emotion-avatar-item.js-view-user-photo:focus-visible .emotion-avatar { box-shadow: 0 0 0 2px #1e88e5; }
+    /* Foto profil user online */
+    .user-photo-modal { overflow: hidden; border: 0; }
+    .user-photo-frame { width: 100%; aspect-ratio: 1 / 1; background: rgba(148, 163, 184, 0.15); display: flex; align-items: center; justify-content: center; }
+    .user-photo-frame img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .user-photo-initials { width: 120px; height: 120px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 42px; font-weight: 700; color: #fff; background: linear-gradient(135deg, #64748b, #334155); }
+    .user-photo-close { position: absolute; top: 8px; right: 10px; z-index: 2; width: 32px; height: 32px; border-radius: 50%; background: rgba(0, 0, 0, 0.45); color: #fff; opacity: 1; text-shadow: none; display: flex; align-items: center; justify-content: center; padding: 0; }
+    .user-photo-close:hover { color: #fff; background: rgba(0, 0, 0, 0.65); }
     .emotion-avatar-item.is-current-user .emotion-avatar { box-shadow: 0 0 0 2px #1e88e5; }
     .emotion-avatar { width: 38px; height: 38px; border-radius: 50%; overflow: hidden; border: 2px solid rgba(148, 163, 184, 0.35); background: rgba(148, 163, 184, 0.15); }
     .emotion-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }

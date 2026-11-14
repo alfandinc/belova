@@ -3,20 +3,13 @@ document.addEventListener('DOMContentLoaded', function () {
     var $ = window.jQuery;
 
     // Modals rendered inside the fixed topbar area: move them to <body> so the backdrop stacks correctly
-    $('#emotionPickerModal, #editProfileModal, #systemUpdateModal, #jadwalModal, #passwordVerificationModal').appendTo('body');
+    $('#emotionPickerModal, #passwordChangeModal, #userPhotoModal,#systemUpdateModal, #jadwalModal, #passwordVerificationModal').appendTo('body');
 
     var currentUserId = window.BelovaTopbarUserConfig.currentUserId;
     var currentUserEmotion = window.BelovaTopbarUserConfig.currentUserEmotion;
-    var hasEmployeeProfile = window.BelovaTopbarUserConfig.hasEmployeeProfile;
-    var profileModalUrl = window.BelovaTopbarUserConfig.profileModalUrl;
     var heartbeatUrl = window.BelovaTopbarUserConfig.heartbeatUrl;
     var updateEmotionUrl = window.BelovaTopbarUserConfig.updateEmotionUrl;
     var csrf = $('meta[name="csrf-token"]').attr('content') || window.BelovaTopbarUserConfig.csrf;
-    var spinner = '<div class="text-center p-5"><div class="spinner-border text-primary" role="status"><span class="sr-only">Loading...</span></div></div>';
-
-    function notify(icon, title, text) {
-        if (window.Swal) { Swal.fire({ icon: icon, title: title, text: text }); } else { alert(title + (text ? '\n' + text : '')); }
-    }
 
     function esc(value) {
         return String(value == null ? '' : value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
@@ -26,17 +19,23 @@ document.addEventListener('DOMContentLoaded', function () {
     function avatarHtml(item, withTooltip) {
         var isMe = Number(item.user_id || 0) === currentUserId;
         var avatar = item.avatar_url
-            ? '<img src="' + esc(item.avatar_url) + '" alt="' + esc(item.name) + '" loading="lazy">'
+            ? '<img src="' + esc(item.avatar_url) + '" alt="' + esc(item.name) + '" data-initials="' + esc(item.initials || 'U') + '" loading="lazy">'
             : '<span class="emotion-avatar-fallback">' + esc(item.initials || 'U') + '</span>';
-        return '<span class="emotion-avatar-item ' + (isMe ? 'is-current-user js-open-emotion-picker' : '') + '" data-user-id="' + esc(item.user_id) + '">'
+        // Own avatar: change mood; someone else's: view their profile photo
+        return '<span class="emotion-avatar-item ' + (isMe ? 'is-current-user js-open-emotion-picker' : 'js-view-user-photo') + '" data-user-id="' + esc(item.user_id) + '"'
+            + (isMe ? '' : ' role="button" tabindex="0" aria-label="Lihat foto ' + esc(item.name || 'User') + '"') + '>'
             + '<span class="emotion-avatar">' + avatar + '</span>'
             + '<span class="emotion-badge" style="background:' + esc(item.color || '#475569') + ';">' + esc(item.emoji || '🙂') + '</span>'
             + (withTooltip ? '<span class="emotion-avatar-tooltip"><span class="name">' + esc(item.name || 'User') + '</span><span class="mood">' + esc(item.label || 'Calm') + '</span></span>' : '')
             + '</span>';
     }
 
+    var onlineById = {};
+
     function renderOnline(items) {
         items = Array.isArray(items) ? items.slice() : [];
+        onlineById = {};
+        items.forEach(function (item) { onlineById[String(item.user_id)] = item; });
         // Me first, then by name
         items.sort(function (a, b) {
             if (Number(a.user_id) === currentUserId) return -1;
@@ -61,6 +60,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 + '<div class="meta">' + esc(item.name || 'User') + (Number(item.user_id) === currentUserId ? ' <small class="d-inline">(Anda)</small>' : '')
                 + '<small>' + esc(item.emoji || '') + ' ' + esc(item.label || '') + '</small></div></div>';
         }).join('') : '<div class="p-2 small text-muted">Belum ada yang online.</div>');
+
+        // Photo file missing: show the initials instead of a broken image
+        $('#user-emotion-board img[data-initials], #belovaOnlinePanel img[data-initials]').on('error', function () {
+            $(this).replaceWith('<span class="emotion-avatar-fallback">' + esc($(this).data('initials')) + '</span>');
+        });
     }
 
     function heartbeat() {
@@ -74,6 +78,27 @@ document.addEventListener('DOMContentLoaded', function () {
     });
     $(document).on('click', function (e) {
         if (!$(e.target).closest('#belovaOnlinePanel').length) $('#belovaOnlinePanel').removeClass('show');
+    });
+
+    // Profile photo of an online user, large
+    $(document).on('click keydown', '.js-view-user-photo', function (e) {
+        if (e.type === 'keydown' && e.key !== 'Enter' && e.key !== ' ') return;
+        e.preventDefault();
+        e.stopPropagation();
+        var item = onlineById[String($(this).data('user-id'))];
+        if (!item) return;
+        $('#belovaOnlinePanel').removeClass('show');
+        var initials = '<span class="user-photo-initials">' + esc(item.initials || 'U') + '</span>';
+        var $frame = $('#userPhotoFrame').html(initials);
+        if (item.avatar_url) {
+            // Missing / unreadable file: keep the initials instead of a broken image
+            $('<img>', { alt: 'Foto ' + (item.name || 'User') })
+                .on('load', function () { $frame.html(this); })
+                .attr('src', item.avatar_url);
+        }
+        $('#userPhotoName').text(item.name || 'User');
+        $('#userPhotoMood').text(((item.emoji || '') + ' ' + (item.label || '')).trim());
+        $('#userPhotoModal').modal('show');
     });
 
     // Server-rendered list is fresh (RefreshActiveUserEmotion already ran for this request): no request on page load
@@ -107,73 +132,41 @@ document.addEventListener('DOMContentLoaded', function () {
             .always(function () { $button.prop('disabled', false).text('Simpan Mood'); });
     });
 
-    // ----- Profile editor -----
-    function initProfileForm() {
-        $('#profileModalContent').find('.custom-file-input').on('change', function () {
-            var fileName = $(this).val().split('\\').pop();
-            $(this).siblings('.custom-file-label').addClass('selected').html(fileName || 'Pilih file...');
-        });
-
-        $('#profileUpdateForm').on('submit', function (e) {
-            e.preventDefault();
-            var $form = $(this);
-            var $submit = $form.find('button[type="submit"]');
-            $.ajax({
-                url: $form.attr('action'),
-                type: 'POST',
-                data: new FormData(this),
-                processData: false,
-                contentType: false,
-                beforeSend: function () {
-                    $submit.html('<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Processing...').attr('disabled', true);
-                },
-                success: function (response) {
-                    if (!response.success) {
-                        notify('error', 'Error!', response.message || 'Gagal memperbarui profil.');
-                        return;
-                    }
-                    $('#editProfileModal').modal('hide');
-                    if (window.Swal) {
-                        Swal.fire({ icon: 'success', title: 'Berhasil!', text: response.message, timer: 2000, timerProgressBar: true })
-                            .then(function () { window.location.reload(); });
-                    } else {
-                        window.location.reload();
-                    }
-                },
-                error: function (xhr) {
-                    var errors = (xhr.responseJSON && xhr.responseJSON.errors) || {};
-                    var messages = Object.keys(errors).map(function (key) { return errors[key][0]; });
-                    if (window.Swal) {
-                        Swal.fire({ icon: 'error', title: 'Validation Error', html: messages.length ? messages.map(esc).join('<br>') : 'Terjadi kesalahan saat menyimpan profil.' });
-                    } else {
-                        alert(messages.join('\n') || 'Terjadi kesalahan saat menyimpan profil.');
-                    }
-                },
-                complete: function () {
-                    $submit.html('Simpan Perubahan').attr('disabled', false);
-                }
-            });
-        });
+    // ----- Ganti password (topbar menu + Profil Saya button) -----
+    var $pwModal = $('#passwordChangeModal'), $pwForm = $('#passwordChangeForm'), $pwError = $('#pw-error');
+    function pwError(message) {
+        $pwError.text(message).toggle(!!message);
     }
-
-    $(document).on('click', '.js-open-profile-modal', function (e) {
+    $(document).on('click', '.js-open-password-modal', function (e) {
         e.preventDefault();
-        if (!hasEmployeeProfile) {
-            notify('warning', 'Profil tidak tersedia', 'Data karyawan tidak ditemukan');
-            return;
-        }
-        $('#profileModalContent').html(spinner);
-        $('#editProfileModal').modal('show');
-        $.get(profileModalUrl)
-            .done(function (html) {
-                $('#profileModalContent').html(html);
-                initProfileForm();
+        $pwForm[0].reset();
+        $('#pw-current, #pw-new, #pw-confirm').attr('type', 'password');
+        pwError('');
+        $pwModal.modal('show');
+    });
+    $pwModal.on('shown.bs.modal', function () { $('#pw-current').trigger('focus'); });
+    $('#pw-show').on('change', function () {
+        $('#pw-current, #pw-new, #pw-confirm').attr('type', this.checked ? 'text' : 'password');
+    });
+    $pwForm.on('submit', function (e) {
+        e.preventDefault();
+        if (!$('#pw-current').val() || !$('#pw-new').val()) return pwError('Isi password saat ini dan password baru.');
+        if ($('#pw-new').val().length < 8) return pwError('Password baru minimal 8 karakter.');
+        if ($('#pw-new').val() !== $('#pw-confirm').val()) return pwError('Ulangi password baru: belum sama.');
+        pwError('');
+        var $btn = $('#pw-save').prop('disabled', true).text('Menyimpan...');
+        $.ajax({ url: $pwForm.attr('action'), type: 'POST', data: $pwForm.serialize(), dataType: 'json' })
+            .done(function (res) {
+                $pwModal.modal('hide');
+                if (window.Swal) Swal.fire({ icon: 'success', title: 'Berhasil', text: res.message, timer: 2000, timerProgressBar: true });
             })
             .fail(function (xhr) {
-                $('#editProfileModal').modal('hide');
-                var message = (xhr.status === 404 && xhr.responseJSON && xhr.responseJSON.message) || 'Form profil gagal dimuat. Silakan coba lagi.';
-                notify('warning', 'Profil tidak tersedia', message);
-            });
+                var r = xhr.responseJSON || {};
+                var msg = r.errors ? r.errors[Object.keys(r.errors)[0]][0]
+                    : (xhr.status === 419 ? 'Sesi habis. Muat ulang halaman lalu coba lagi.' : (r.message || 'Password gagal diperbarui.'));
+                pwError(msg);
+            })
+            .always(function () { $btn.prop('disabled', false).text('Ganti Password'); });
     });
 
     // ----- System update info (auto-shown once per browser per update; bump the version with each new update) -----

@@ -75,15 +75,17 @@
                                     $expiringSoon = $employees
                                         ->where('status', 'kontrak')
                                         ->filter(function($employee) {
-                                            return $employee->kontrak_berakhir && 
-                                                $employee->kontrak_berakhir->diffInDays(now()) <= 30;
-                                        });
+                                            // Already ended (not yet renewed) or ending within 30 days
+                                            return $employee->kontrak_berakhir
+                                                && $employee->kontrak_berakhir->lte(today()->addDays(30));
+                                        })
+                                        ->sortBy('kontrak_berakhir');
                                 @endphp
                                 
                                 @forelse($expiringSoon as $employee)
                                     <li class="list-group-item d-flex justify-content-between align-items-center">
                                         {{ $employee->nama }}
-                                        <span class="badge badge-warning">Berakhir: {{ $employee->kontrak_berakhir->format('d-m-Y') }}</span>
+                                        <span class="badge {{ $employee->kontrak_berakhir->lt(today()) ? 'badge-danger' : 'badge-warning' }}">{{ $employee->kontrak_berakhir->lt(today()) ? 'Sudah lewat' : 'Berakhir' }}: {{ $employee->kontrak_berakhir->format('d-m-Y') }}</span>
                                     </li>
                                 @empty
                                     <li class="list-group-item text-center text-muted">Tidak ada kontrak yang berakhir dalam 30 hari</li>

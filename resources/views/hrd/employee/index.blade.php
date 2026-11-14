@@ -111,6 +111,12 @@
     .ck-item-success::before { background: #28a745; }
     .ck-item-info::before { background: #17a2b8; }
     .ck-item-danger::before { background: #dc3545; }
+    .ck-item-warning::before { background: #ffc107; }
+    .ck-action-success { border-color: #b7e4c7; color: #1e7e34; }
+    .ck-action-success:hover, .ck-action-success.active { background: #f1fbf4; box-shadow: 0 0 0 2px #b7e4c7; }
+    .ck-form-success { border-color: #b7e4c7; background: #fafffb; }
+    .ck-pkwt { padding: 8px 12px; border: 1px dashed #d1d9e6; border-radius: 6px; }
+    .ck-correct-form { background: #fff; }
     .ck-item-active { border-color: #b7e4c7; background: #f6fcf8; }
     /* Tempat, tgl lahir */
     .ttl { line-height: 1.4; white-space: nowrap; }
@@ -604,6 +610,9 @@ $(function() {
                             : '<div class="small text-danger"><i class="fas fa-exclamation-triangle mr-1"></i>Belum ada kontrak</div>';
                     } else if (status === 'tidak aktif' && row.nonaktif_label) {
                         info = '<div class="small text-muted">' + esc(row.nonaktif_label) + '</div>';
+                    }
+                    if (row.nonaktif_jadwal) {
+                        info += '<div class="small text-danger"><i class="fas fa-calendar-times mr-1"></i>' + esc(row.nonaktif_jadwal) + '</div>';
                     }
                     return statusBadge(status) + info;
                 }
@@ -1216,9 +1225,11 @@ $(function() {
             $(this).toggleClass('btn-primary', +$(this).data('months') === months).toggleClass('btn-outline-primary', +$(this).data('months') !== months);
         });
 
-        var prevEnd = ymdDate($form.data('prev-end'));
+        var prevEnd = ymdDate($form.data('prev-end')), minStart = ymdDate($('#ck-start').attr('min'));
         var $hint = $('#ck-start-hint').removeClass('text-success text-warning text-danger text-muted');
-        if (start && prevEnd) {
+        if (start && minStart && start < minStart) {
+            $hint.addClass('text-danger').html('<i class="fas fa-times-circle mr-1"></i>Paling cepat ' + minStart.toLocaleDateString('id-ID', LONG_FMT));
+        } else if (start && prevEnd) {
             var gap = daysBetween(prevEnd, start) - 1;
             if (gap === 0) {
                 $hint.addClass('text-success').html('<i class="fas fa-check-circle mr-1"></i>Tepat setelah kontrak sebelumnya berakhir');
@@ -1236,11 +1247,20 @@ $(function() {
             return;
         }
         var end = contractEnd(start, months);
+        var newDays = daysBetween(start, end) + 1;
+        // PKWT total after this contract: the running one is cut at the new start (same as the server)
+        var total = +$form.data('total-days') || 0, activeEnd = ymdDate($form.data('active-end'));
+        if (activeEnd && start <= activeEnd) total -= daysBetween(start, activeEnd) + 1;
+        total += newDays;
+        var maxDays = +$form.data('max-days'), years = (total / 365).toFixed(1).replace('.', ',');
+        var pkwt = total > maxDays
+            ? '<div class="small text-danger mt-1"><i class="fas fa-exclamation-triangle mr-1"></i>Total masa kontrak menjadi ±' + years + ' tahun, melewati batas PKWT 5 tahun. Pertimbangkan angkat karyawan tetap.</div>'
+            : '<div class="small text-muted mt-1">Total masa kontrak menjadi ±' + years + ' tahun (batas PKWT 5 tahun)</div>';
         $('#ck-preview').html(
             '<div class="ck-preview-period"><div><small>Mulai</small><b>' + start.toLocaleDateString('id-ID', LONG_FMT) + '</b></div>' +
             '<i class="fas fa-long-arrow-alt-right"></i>' +
             '<div><small>Berakhir</small><b>' + end.toLocaleDateString('id-ID', LONG_FMT) + '</b></div></div>' +
-            '<div class="small text-muted mt-1">' + months + ' bulan · ' + (daysBetween(start, end) + 1) + ' hari</div>');
+            '<div class="small text-muted mt-1">' + months + ' bulan · ' + newDays + ' hari</div>' + pkwt);
     }
     $(document).on('change input', '#ck-start, #ck-duration', updateContractPreview);
     $(document).on('click', '.ck-duration-chip', function() {
@@ -1254,9 +1274,17 @@ $(function() {
         if (!$form.length) return;
         var effective = ymdDate($('#ck-nonaktif-tanggal').val()), end = ymdDate($form.data('end')), start = ymdDate($form.data('start'));
         var $hint = $('#ck-terminate-hint').removeClass('text-muted text-danger text-warning');
+        var min = ymdDate($('#ck-nonaktif-tanggal').attr('min')), max = ymdDate($('#ck-nonaktif-tanggal').attr('max'));
+        var today = ymdDate($('#ck-nonaktif-tanggal').data('today'));
         if (!effective) { $hint.text(''); return; }
-        if (effective < start) {
-            $hint.addClass('text-danger').text('Sebelum kontrak dimulai (' + start.toLocaleDateString('id-ID', LONG_FMT) + ').');
+        if (effective > max) {
+            $hint.addClass('text-danger').text('Paling lambat ' + max.toLocaleDateString('id-ID', LONG_FMT) + ' (akhir kontrak).');
+        } else if (effective < min) {
+            $hint.addClass('text-danger').text('Tidak boleh sebelum ' + min.toLocaleDateString('id-ID', LONG_FMT) + ' (mulai kontrak).');
+        } else if (effective > today) {
+            $hint.addClass('text-warning').html('<i class="fas fa-calendar-alt mr-1"></i>Terjadwal: tetap aktif sampai ' + effective.toLocaleDateString('id-ID', LONG_FMT) + ', tidak aktif keesokan harinya.');
+        } else if (effective < start) {
+            $hint.addClass('text-muted').text('Kontrak belum dimulai: kontrak dibatalkan.');
         } else if (effective >= end) {
             $hint.addClass('text-muted').text('Sesuai / setelah akhir kontrak (' + end.toLocaleDateString('id-ID', LONG_FMT) + ').');
         } else {
@@ -1265,16 +1293,49 @@ $(function() {
     }
     $(document).on('change input', '#ck-nonaktif-tanggal', updateTerminateHint);
 
-    // Only one of the two forms open at a time; highlight the open action
-    $(document).on('show.bs.collapse', '#ck-renew, #ck-terminate', function() {
-        $('#ck-renew, #ck-terminate').not(this).collapse('hide');
+    // Only one of the main forms open at a time; highlight the open action
+    $(document).on('show.bs.collapse', '.ck-main-form', function(e) {
+        if (e.target !== this) return;
+        $('.ck-main-form').not(this).collapse('hide');
         $('.ck-action').removeClass('active').filter('[data-target="#' + this.id + '"]').addClass('active');
     });
-    $(document).on('hide.bs.collapse', '#ck-renew, #ck-terminate', function() {
+    $(document).on('hide.bs.collapse', '.ck-main-form', function(e) {
+        if (e.target !== this) return;
         $('.ck-action[data-target="#' + this.id + '"]').removeClass('active');
     });
-    $(document).on('shown.bs.collapse', '#ck-renew, #ck-terminate', function() {
+    $(document).on('shown.bs.collapse', '.ck-main-form, .ck-correct-form', function(e) {
+        if (e.target !== this) return;
         $(this).find('input:visible, select:visible').first().trigger('focus');
+    });
+
+    // Koreksi / angkat tetap: same AJAX submit, optional confirmation on the save button
+    $(document).on('submit', '.ck-correct-form, #ck-permanent', function(e) {
+        e.preventDefault();
+        var $form = $(this), $btn = $form.find('.ck-save'), $error = $form.find('.ck-error');
+        var missing = $form.find('[required]').filter(function() { return !$.trim($(this).val()); });
+        if (missing.length) {
+            showContractError($error, 'Lengkapi kolom yang wajib diisi.');
+            return;
+        }
+        var go = function() { submitContractForm($form, $btn, $error); };
+        if (!$btn.data('confirm')) return go();
+        Swal.fire({ icon: 'question', title: $btn.data('confirm'), showCancelButton: true, confirmButtonText: 'Ya', cancelButtonText: 'Batal', reverseButtons: true })
+            .then(function(r) { if (r.value) go(); });
+    });
+
+    $(document).on('click', '#ck-cancel-schedule', function() {
+        var url = $(this).data('url');
+        Swal.fire({ icon: 'question', title: 'Batalkan jadwal nonaktif?', text: 'Karyawan tetap aktif seperti biasa.', showCancelButton: true,
+            confirmButtonText: 'Ya, batalkan', cancelButtonText: 'Tidak', reverseButtons: true }).then(function(r) {
+            if (!r.value) return;
+            $.post(url).done(function(res) {
+                table.ajax.reload(null, false);
+                Swal.fire({ icon: 'success', title: 'Berhasil', text: res.message, timer: 2000, timerProgressBar: true });
+                openContracts(contractEmployeeId, true);
+            }).fail(function(xhr) {
+                Swal.fire({ icon: 'error', title: 'Gagal', text: (xhr.responseJSON || {}).message || 'Gagal membatalkan.' });
+            });
+        });
     });
 
     function showContractError($error, message) {
@@ -1322,12 +1383,13 @@ $(function() {
             return;
         }
         // Ending employment is not undone by a click: ask once more
+        var selesai = $('#ck-nonaktif-alasan').val() === 'kontrak_habis';
         Swal.fire({
             icon: 'warning',
-            title: 'Putus kontrak?',
+            title: selesai ? 'Akhiri kontrak (Selesai)?' : 'Putus kontrak?',
             html: 'Alasan: <b>' + esc($('#ck-nonaktif-alasan option:selected').text()) + '</b><br>Berlaku: <b>' +
                 ymdDate($('#ck-nonaktif-tanggal').val()).toLocaleDateString('id-ID', LONG_FMT) + '</b><br><br>Karyawan akan menjadi <b>tidak aktif</b>.',
-            showCancelButton: true, confirmButtonText: 'Ya, putus kontrak', cancelButtonText: 'Batal', confirmButtonColor: '#d33', reverseButtons: true
+            showCancelButton: true, confirmButtonText: selesai ? 'Ya, akhiri kontrak' : 'Ya, putus kontrak', cancelButtonText: 'Batal', confirmButtonColor: '#d33', reverseButtons: true
         }).then(function(r) {
             if (r.value) submitContractForm($form, $('#ck-terminate-save'), $('#ck-terminate-error'));
         });

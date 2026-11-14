@@ -3,184 +3,142 @@
 namespace App\Http\Controllers\HRD;
 
 use App\Http\Controllers\Controller;
-use App\Models\Area\Village;
 use App\Models\HRD\Employee;
-use App\Models\AreaVillage;
+use App\Models\HRD\EmployeeLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 
+/**
+ * Profil Saya: one page to view and edit one's own data (topbar). Every account may open it; the karyawan
+ * part only shows when the account is linked to an employee, ganti password works for all.
+ * NIK, tanggal masuk, status, posisi, perusahaan, BPJS, rekening ... are maintained by HRD (read-only here).
+ */
 class EmployeeSelfServiceController extends Controller
 {
-    public function profile(Request $request)
-{
-    $employee = Auth::user()->employee;
-    $positions = \App\Models\HRD\Position::all();
+    private const DOCUMENTS = ['doc_cv' => 'CV', 'doc_ktp' => 'KTP', 'doc_pendukung' => 'Dokumen Pendukung'];
 
-    // If you want to start in edit mode, pass ?edit=1 in the URL
-    $editMode = $request->query('edit', false);
-
-        if (!$employee) {
-            return view('hrd.employee.profile', [
-                'employee' => null,
-                'positions' => $positions,
-                'editMode' => $editMode,
-                'profileNotFound' => true,
-            ]);
-        }
+    public function profile()
+    {
+        $user = Auth::user();
+        $employee = $user->employee; // null: account without karyawan data (dokter, ...)
 
         return view('hrd.employee.profile', [
-            'employee' => $employee,
-            'positions' => $positions,
-            'editMode' => $editMode,
-            'profileNotFound' => false,
-        ]);
-}
-
-    // Add this new method
-public function getEditProfileModal(Request $request)
-{
-    $employee = Auth::user()->employee;
-    
-    if (!$employee) {
-        return response()->json([
-            'success' => false,
-            'message' => 'Data karyawan tidak ditemukan'
-        ], 404);
-    }
-
-    // Check if we're showing the password change modal
-    if ($request->query('mode') === 'password') {
-        return view('hrd.partials.modal-change-password');
-    }
-
-    // Default to profile edit modal
-    return view('hrd.partials.modal-edit-profile', compact('employee'));
-}
-
-// Update the updateProfile method to handle all fields
-public function updateProfile(Request $request)
-{
-    
-    $employee = Auth::user()->employee;
-
-    if (!$employee) {
-        if ($request->ajax()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Data karyawan tidak ditemukan'
-            ]);
-        }
-
-        return redirect()->route('dashboard.index')
-            ->with('error', 'Data karyawan tidak ditemukan');
-    }
-
-    $data = $request->validate([
-        'nama' => 'nullable|string',
-        'tempat_lahir' => 'nullable|string',
-        'tanggal_lahir' => 'nullable|date',
-        'pendidikan' => 'nullable|string',
-        'alamat' => 'nullable|string',
-        'gol_darah' => 'nullable|string|max:5',
-        'village_id' => 'nullable|exists:area_villages,id',
-        'no_hp' => 'nullable|string',
-        'no_darurat' => 'nullable|string|max:50', // Emergency contact number
-        // nik / tanggal_masuk are left out on purpose: maintained by HRD (tanggal masuk sets jatah cuti)
-        'photo' => 'nullable|image',
-        'doc_cv' => 'nullable|file|max:10240',
-        'doc_ktp' => 'nullable|file|max:10240',
-        'doc_kontrak' => 'nullable|file|max:10240',
-        'doc_pendukung' => 'nullable|file|max:10240',
-        'email' => 'nullable|email|max:255|unique:hrd_employee,email,' . $employee->id,
-        'instagram' => 'nullable|string|max:255',
-    ]);
-
-    // Comma-separated accounts -> list (the model casts instagram to an array)
-    if (array_key_exists('instagram', $data)) {
-        $data['instagram'] = array_values(array_filter(array_map(fn($i) => ltrim(trim($i), '@'), explode(',', (string) $data['instagram'])), 'strlen'));
-    }
-
-    // Handle photo upload
-    if ($request->hasFile('photo')) {
-    if ($employee->photo) {
-        Storage::disk('public')->delete($employee->photo);
-    }
-    $data['photo'] = $request->file('photo')->store('employees/photos', 'public');
-}
-
-    // Handle document uploads
-    foreach (['doc_cv', 'doc_ktp', 'doc_kontrak', 'doc_pendukung'] as $doc) {
-    if ($request->hasFile($doc)) {
-        if ($employee->$doc) {
-            Storage::disk('public')->delete($employee->$doc);
-        }
-        $data[$doc] = $request->file($doc)->store('documents/employees', 'public');
-    }
-}
-
-    // Map no_darurat to the correct field for Employee model
-    $employeeData = $data;
-    if (isset($data['no_darurat'])) {
-        $employeeData['no_darurat'] = $data['no_darurat'];
-    }
-    $employee->update($employeeData);
-
-    // SYNC THE USER NAME with EMPLOYEE NAME
-    if (isset($data['nama']) && $employee->user) {
-        $employee->user->update([
-            'name' => $data['nama']
+            'user' => $user,
+            'employee' => $employee?->loadMissing('positions.divisions'),
+            'contracts' => $employee ? $employee->contracts()->orderByDesc('start_date')->get() : collect(),
+            'documents' => self::DOCUMENTS,
+            'jurusanList' => $employee ? $this->jurusanList() : [],
         ]);
     }
 
-    if ($request->ajax()) {
-        return response()->json([
-            'success' => true,
-            'message' => 'Profil berhasil diperbarui',
-            'redirect' => route('hrd.employee.profile')
-        ]);
-    }
-
-    return redirect()->route('hrd.employee.profile')
-        ->with('success', 'Profil berhasil diperbarui');
-}
-
-    public function changePassword()
+    /** The employee's own contract document (HRD opens it from Data Karyawan). */
+    public function contractDocument($contractId)
     {
-        return view('hrd.employee.change-password');
+        $employee = Auth::user()->employee;
+        abort_unless($employee, 404);
+
+        return EmployeeContractController::documentResponse($employee->contracts()->findOrFail($contractId));
+    }
+
+    public function updateProfile(Request $request)
+    {
+        $employee = Auth::user()->employee;
+        if (!$employee) {
+            return response()->json(['success' => false, 'message' => 'Akun ini belum terhubung dengan data karyawan.'], 404);
+        }
+
+        $data = $request->validate([
+            'nama' => 'required|string|max:255',
+            'tempat_lahir' => 'nullable|string|max:100',
+            'tanggal_lahir' => 'nullable|date|before:today',
+            'pendidikan_jenjang' => 'nullable|in:' . implode(',', Employee::PENDIDIKAN),
+            'pendidikan_jurusan' => 'nullable|string|max:80',
+            'alamat' => 'nullable|string|max:500',
+            'gol_darah' => 'nullable|string|max:5', // the select also offers an older value such as "A+"
+            'no_hp' => 'nullable|string|max:30',
+            'darurat_nama' => 'nullable|string|max:100',
+            'darurat_hubungan' => 'nullable|string|max:50',
+            'no_darurat' => 'nullable|string|max:50',
+            'email' => 'nullable|email|max:255|unique:hrd_employee,email,' . $employee->id,
+            'instagram' => 'nullable|string|max:255',
+            // Public disk: only images / documents, never a script the web server could run
+            'photo' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
+            // 2MB: same as Data Karyawan and the server's upload_max_filesize
+            'doc_cv' => 'nullable|file|mimes:pdf,jpg,jpeg,png,doc,docx|max:2048',
+            'doc_ktp' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:2048',
+            'doc_pendukung' => 'nullable|file|mimes:pdf,jpg,jpeg,png,doc,docx,zip|max:2048',
+        ], [
+            'nama.required' => 'Nama wajib diisi.',
+            'tanggal_lahir.before' => 'Tanggal lahir harus sebelum hari ini.',
+            'photo.max' => 'Foto maksimal 2MB.',
+            'mimes' => 'Format file tidak didukung.',
+            'uploaded' => 'File gagal diunggah, kemungkinan lebih dari 2MB.',
+            'max' => ':attribute terlalu besar / panjang.',
+        ]);
+
+        // Same format as Data Karyawan: "S1 Ilmu Komunikasi"
+        $data['pendidikan'] = Employee::joinPendidikan($data['pendidikan_jenjang'] ?? null, $data['pendidikan_jurusan'] ?? null);
+        unset($data['pendidikan_jenjang'], $data['pendidikan_jurusan']);
+        $data['instagram'] = array_values(array_filter(array_map(fn($i) => ltrim(trim($i), '@'),
+            explode(',', (string) ($data['instagram'] ?? ''))), 'strlen'));
+
+        $old = [];
+        $folders = ['photo' => 'employees/photos'] + array_fill_keys(array_keys(self::DOCUMENTS), 'documents/employees');
+        foreach ($folders as $field => $folder) {
+            unset($data[$field]);
+            if ($request->hasFile($field)) {
+                $data[$field] = $request->file($field)->store($folder, 'public');
+                $old[] = $employee->{$field};
+            }
+        }
+
+        DB::transaction(function () use ($employee, $data) {
+            $before = EmployeeLog::snapshot($employee);
+            $employee->update($data);
+            if ($employee->user && $employee->user->name !== $data['nama']) {
+                $employee->user->update(['name' => $data['nama']]); // the account shows the same name
+            }
+            $employee->unsetRelations();
+            EmployeeLog::recordDiff($employee->id, $before, EmployeeLog::snapshot($employee)); // HRD sees what changed
+        });
+
+        // Replaced files go only after the new data is saved
+        foreach (array_filter($old) as $path) {
+            Storage::disk('public')->delete($path);
+        }
+
+        return response()->json(['success' => true, 'message' => 'Profil berhasil diperbarui.']);
     }
 
     public function updatePassword(Request $request)
     {
         $request->validate([
             'current_password' => 'required',
-            'password' => 'required|string|min:8|confirmed',
+            'password' => 'required|string|min:8|confirmed|different:current_password',
+        ], [
+            'password.min' => 'Password baru minimal 8 karakter.',
+            'password.confirmed' => 'Konfirmasi password baru tidak sama.',
+            'password.different' => 'Password baru harus berbeda dari password saat ini.',
         ]);
 
         $user = Auth::user();
-
         if (!Hash::check($request->current_password, $user->password)) {
-            if ($request->ajax()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Password lama tidak sesuai'
-                ]);
-            }
-
-            return back()->withErrors(['current_password' => 'Password lama tidak sesuai']);
+            return response()->json(['success' => false, 'message' => 'Password saat ini tidak sesuai.',
+                'errors' => ['current_password' => ['Password saat ini tidak sesuai.']]], 422);
         }
 
         $user->update(['password' => Hash::make($request->password)]);
 
-        if ($request->ajax()) {
-            return response()->json([
-                'success' => true,
-                'message' => 'Password berhasil diperbarui'
-            ]);
-        }
+        return response()->json(['success' => true, 'message' => 'Password berhasil diperbarui.']);
+    }
 
-        return redirect()->route('hrd.employee.profile')
-            ->with('success', 'Password berhasil diperbarui');
+    /** Jurusan already used (datalist), same source as Data Karyawan. */
+    private function jurusanList(): array
+    {
+        return Employee::withInactive()->whereNotNull('pendidikan')->distinct()->pluck('pendidikan')
+            ->map(fn($p) => Employee::splitPendidikan($p)[1])->filter()->unique()->sort()->values()->all();
     }
 }

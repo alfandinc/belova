@@ -100,8 +100,9 @@
                     @endif
                 </a>
                 <div class="dropdown-menu dropdown-menu-right">
-                    <a class="dropdown-item js-open-profile-modal" href="#"><i data-feather="edit-2" class="align-self-center icon-xs icon-dual mr-1"></i> Edit Profil</a>
-                    <a class="dropdown-item" href="{{ route($topbarProfileRoute) }}"><i data-feather="user" class="align-self-center icon-xs icon-dual mr-1"></i> Halaman Profil</a>
+                    {{-- One page to view and edit (data diri, dokumen, kontrak); password in a modal --}}
+                    <a class="dropdown-item" href="{{ route($topbarProfileRoute) }}"><i data-feather="user" class="align-self-center icon-xs icon-dual mr-1"></i> Profil Saya</a>
+                    <a class="dropdown-item js-open-password-modal" href="#"><i data-feather="key" class="align-self-center icon-xs icon-dual mr-1"></i> Ganti Password</a>
                     <a class="dropdown-item js-open-emotion-picker" href="#"><i data-feather="smile" class="align-self-center icon-xs icon-dual mr-1"></i> Ganti Mood</a>
                     <div class="dropdown-divider mb-0"></div>
                     <form id="logout-form" action="{{ route('logout') }}" method="POST" style="display: none;">

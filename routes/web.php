@@ -1664,6 +1664,15 @@ Route::prefix('inventory')->middleware('role:Admin|Inventaris')->group(function 
     }
 );
 
+// Profil Saya (topbar): any logged-in account. Data karyawan only when the account is linked to an employee;
+// ganti password works for every account (dokter, kasir, ... included).
+Route::prefix('hrd')->middleware('auth')->group(function () {
+    Route::get('/profile', [EmployeeSelfServiceController::class, 'profile'])->name('hrd.employee.profile');
+    Route::put('/profile', [EmployeeSelfServiceController::class, 'updateProfile'])->name('hrd.employee.profile.update');
+    Route::put('/profile/password', [EmployeeSelfServiceController::class, 'updatePassword'])->name('hrd.employee.password.update');
+    Route::get('/profile/kontrak/{contractId}/dokumen', [EmployeeSelfServiceController::class, 'contractDocument'])->name('hrd.employee.profile.contract-document');
+});
+
 // Jadwal viewer (sidebar / dashboard "Jadwal"): read-only data, print / download and "sudah dibaca"; Dokter too
 Route::prefix('hrd')->middleware('role:Hrd|Manager|Head Manager|Employee|Admin|Ceo|Dokter')->group(function () {
     Route::get('schedule/view-data', [\App\Http\Controllers\HRD\EmployeeScheduleController::class, 'viewData'])->name('hrd.schedule.view_data');
@@ -1804,6 +1813,8 @@ Route::prefix('hrd')->middleware('role:Hrd|Manager|Head Manager|Employee|Admin|C
             Route::get('/employee/{id}/get-details', [EmployeeController::class, 'getDetails'])->name('hrd.employee.get-details');
             Route::get('/employee/{id}/logs', [EmployeeController::class, 'logs'])->name('hrd.employee.logs');
             Route::get('/employee/{employeeId}/contracts', [EmployeeContractController::class, 'index'])->name('hrd.employee.contracts.index');
+            Route::get('/employee/{employeeId}/contracts/{contractId}/document', [EmployeeContractController::class, 'document'])->name('hrd.employee.contracts.document');
+            Route::get('/employee/{employeeId}/contracts/{contractId}/cetak', [EmployeeContractController::class, 'printLetter'])->name('hrd.employee.contracts.print');
         });
         Route::middleware('role:Hrd|Admin')->group(function () {
             Route::get('/employee/create', [EmployeeController::class, 'create'])->name('hrd.employee.create');
@@ -1814,6 +1825,9 @@ Route::prefix('hrd')->middleware('role:Hrd|Manager|Head Manager|Employee|Admin|C
             // No delete: employees are referenced by absensi, slip gaji, jadwal, ...; status Tidak Aktif instead
             Route::post('/employee/{employeeId}/contracts', [EmployeeContractController::class, 'store'])->name('hrd.employee.contracts.store');
             Route::post('/employee/{employeeId}/contracts/{contractId}/terminate', [EmployeeContractController::class, 'terminate'])->name('hrd.employee.contracts.terminate');
+            Route::post('/employee/{employeeId}/contracts/{contractId}/koreksi', [EmployeeContractController::class, 'correct'])->name('hrd.employee.contracts.correct');
+            Route::post('/employee/{employeeId}/contracts/batal-nonaktif', [EmployeeContractController::class, 'cancelSchedule'])->name('hrd.employee.contracts.cancel-schedule');
+            Route::post('/employee/{employeeId}/contracts/angkat-tetap', [EmployeeContractController::class, 'makePermanent'])->name('hrd.employee.contracts.permanent');
         });
         Route::get('/employee/{id}', [EmployeeController::class, 'show'])->name('hrd.employee.show'); // redirect to the list
 
@@ -1830,16 +1844,8 @@ Route::prefix('hrd')->middleware('role:Hrd|Manager|Head Manager|Employee|Admin|C
             Route::delete('/dokters/{id}', [\App\Http\Controllers\ERM\DokterController::class, 'destroy'])->name('hrd.dokters.destroy');
         });
 
-        // Employee Self Service Routes
+        // Employee self service (Profil Saya) lives in its own auth-only group below: every account opens it
 
-        Route::get('/profile', [EmployeeSelfServiceController::class, 'profile'])->name('hrd.employee.profile');
-
-        Route::get('/profile/edit-modal', [EmployeeSelfServiceController::class, 'getEditProfileModal'])->name('hrd.employee.profile.modal');
-        Route::put('/profile', [EmployeeSelfServiceController::class, 'updateProfile'])->name('hrd.employee.profile.update');
-
-        Route::put('/profile/password', [EmployeeSelfServiceController::class, 'updatePassword'])->name('hrd.employee.password.update');
-
-        
         // Division routes (for managers)
         Route::get('/my-division', [DivisionController::class, 'showMyDivision'])->name('hrd.division.mine');
         Route::get('/my-team', [DivisionController::class, 'showMyTeam'])->name('hrd.division.team');

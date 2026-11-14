@@ -135,6 +135,9 @@ class EmployeeController extends Controller
     public function index(Request $request)
     {
         if (!$request->ajax()) {
+            // Safety net when the scheduler did not run: carry out scheduled nonaktif that are due
+            Employee::nonaktifJatuhTempo()->get()->each->prosesNonaktifTerjadwal();
+
             $divisions = Division::where('is_active', true)->orderBy('name')->get();
             $positions = Position::where('is_active', true)->orderBy('name')->get(['id', 'name']);
             $canManage = self::canManage(); // Ceo / Head Manager only view
@@ -160,6 +163,9 @@ class EmployeeController extends Controller
                 return (Employee::NONAKTIF_ALASAN[$employee->nonaktif_alasan] ?? $employee->nonaktif_alasan)
                     . ($employee->nonaktif_tanggal ? ' · ' . $employee->nonaktif_tanggal->format('d/m/Y') : '');
             })
+            ->addColumn('nonaktif_jadwal', fn($employee) => $employee->nonaktifTerjadwal()
+                ? 'Nonaktif setelah ' . $employee->nonaktif_tanggal->format('d/m/Y') . ' · ' . (Employee::NONAKTIF_ALASAN[$employee->nonaktif_alasan] ?? $employee->nonaktif_alasan)
+                : null)
             ->addColumn('masa_kerja', fn($employee) => $employee->masaKerja())
             ->addColumn('perusahaan_daftar', fn($employee) => array_map(fn($nama) => [
                 'nama' => $nama,
@@ -336,11 +342,13 @@ class EmployeeController extends Controller
             // Required: a NULL status is hidden by Employee's 'active' scope (LOWER(NULL) <> ... is never true)
             'status' => 'required|in:tetap,kontrak,tidak aktif,freelance',
             'nonaktif_alasan' => ['required_if:status,tidak aktif', 'nullable', Rule::in(array_keys(Employee::NONAKTIF_ALASAN))],
-            'nonaktif_tanggal' => 'required_if:status,tidak aktif|nullable|date',
+            // Edit: a future last day is scheduled (hrd:proses-nonaktif); a new employee cannot start non-aktif later
+            'nonaktif_tanggal' => 'required_if:status,tidak aktif|nullable|date' . ($employee ? '' : '|before_or_equal:today'),
             'nonaktif_keterangan' => 'nullable|string|max:1000',
-            'doc_cv' => 'nullable|file|max:2048',
-            'doc_ktp' => 'nullable|file|max:2048',
-            'doc_pendukung' => 'nullable|file|max:2048',
+            // Stored on the public disk: only document types, never a script the web server could run
+            'doc_cv' => 'nullable|file|mimes:pdf,jpg,jpeg,png,doc,docx|max:2048',
+            'doc_ktp' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:2048',
+            'doc_pendukung' => 'nullable|file|mimes:pdf,jpg,jpeg,png,doc,docx,zip|max:2048',
             'email' => ['nullable', 'email', 'max:255', Rule::unique('hrd_employee', 'email')->ignore($ignore)],
             'kategori_pegawai' => 'nullable|string|in:normal,khusus',
             'gol_gaji_pokok_id' => 'nullable|exists:pr_master_gajipokok,id',
@@ -356,6 +364,8 @@ class EmployeeController extends Controller
             'perusahaan_list.required' => 'Pilih minimal satu perusahaan.',
             'nonaktif_alasan.required_if' => 'Alasan nonaktif wajib diisi jika status Tidak Aktif.',
             'nonaktif_tanggal.required_if' => 'Tanggal nonaktif wajib diisi jika status Tidak Aktif.',
+            'nonaktif_tanggal.before_or_equal' => 'Karyawan baru tidak bisa dijadwalkan nonaktif: simpan dulu, lalu ubah statusnya.',
+            'mimes' => 'Format file tidak didukung (gunakan PDF, gambar, atau Word).',
             'user_id.unique' => 'Akun login ini sudah dipakai karyawan lain.',
             'finger_id.unique' => 'Finger ID ini sudah dipakai karyawan lain.',
         ];
@@ -391,7 +401,12 @@ class EmployeeController extends Controller
             $data['jumlah_tanggungan'] = null;
         }
         if ($data['status'] !== 'tidak aktif') {
-            $data['nonaktif_tanggal'] = $data['nonaktif_alasan'] = $data['nonaktif_keterangan'] = null;
+            if ($employee && $employee->status !== 'tidak aktif') {
+                // Still working: keep a scheduled nonaktif as it is (cancelled from the Kontrak modal)
+                unset($data['nonaktif_tanggal'], $data['nonaktif_alasan'], $data['nonaktif_keterangan']);
+            } else {
+                $data['nonaktif_tanggal'] = $data['nonaktif_alasan'] = $data['nonaktif_keterangan'] = null;
+            }
         }
         unset($data['position_ids'], $data['primary_position']);
 
@@ -448,11 +463,21 @@ class EmployeeController extends Controller
         $data = $request->validate($this->rules($employee), $this->messages());
 
         $oldStatus = $employee->status;
+        // Tidak aktif with a last day in the future: keep working until then, hrd:proses-nonaktif does the rest
+        $jadwal = $data['status'] === 'tidak aktif' && $oldStatus !== 'tidak aktif'
+            && \Carbon\Carbon::parse($data['nonaktif_tanggal'])->gt(today());
+        if ($jadwal) {
+            $data['status'] = $oldStatus;
+        }
         $contractEnded = false;
-        DB::transaction(function () use ($request, $data, $employee, &$contractEnded) {
+        DB::transaction(function () use ($request, $data, $employee, &$contractEnded, $jadwal) {
             $before = EmployeeLog::snapshot($employee);
 
-            $employee->update($this->employeeData($request, $data, $employee));
+            $values = $this->employeeData($request, $data, $employee);
+            if ($jadwal) {
+                $values += array_intersect_key($data, array_flip(['nonaktif_tanggal', 'nonaktif_alasan', 'nonaktif_keterangan']));
+            }
+            $employee->update($values);
             $this->syncPositions($employee, $data['position_ids'], $data['primary_position'] ?? null);
             $contractEnded = $employee->endActiveContractIfNotKontrak();
 
@@ -465,7 +490,9 @@ class EmployeeController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Data karyawan berhasil diperbarui' . ($contractEnded ? '. Kontrak aktif ikut diakhiri.' : ''),
+            'message' => 'Data karyawan berhasil diperbarui' . ($contractEnded ? '. Kontrak aktif ikut diakhiri.' : '')
+                . ($jadwal ? '. Karyawan tetap aktif sampai ' . \Carbon\Carbon::parse($data['nonaktif_tanggal'])->locale('id')->translatedFormat('j F Y')
+                    . ' (hari terakhir), lalu otomatis tidak aktif.' : ''),
             // Became kontrak without an active contract: the list opens the contract form next
             'need_contract' => $employee->status === 'kontrak' && $oldStatus !== 'kontrak'
                 && !$employee->contracts()->where('status', 'active')->exists(),

@@ -233,6 +233,13 @@ class Employee extends Model
         static::addGlobalScope('active', function (Builder $builder) {
             $builder->whereRaw('LOWER(' . $builder->getModel()->qualifyColumn('status') . ') <> ?', ['tidak aktif']);
         });
+
+        // Only kontrak employees have an end date; a stale one would show up again when the status flips back
+        static::saving(function (Employee $employee) {
+            if ($employee->status !== 'kontrak' && $employee->kontrak_berakhir !== null) {
+                $employee->kontrak_berakhir = null;
+            }
+        });
     }
 
     public function scopeActive(Builder $query): Builder
@@ -434,24 +441,12 @@ class Employee extends Model
         return $this->hasMany(EmployeeContract::class, 'employee_id');
     }
     
-    public function activeContract()
-    {
-        return $this->hasOne(EmployeeContract::class, 'employee_id')
-                    ->where('status', 'active')
-                    ->orderBy('end_date', 'desc');
-    }
-    
-    public function lastContract()
-    {
-        return $this->hasOne(EmployeeContract::class, 'employee_id')
-                    ->latest('end_date');
-    }
-
     /**
      * An employee whose status is no longer kontrak keeps no running contract: it ends today.
-     * Tidak aktif = 'terminated' (Diputus), tetap / freelance = 'expired' (Selesai). Returns whether one was ended.
+     * Tidak aktif = 'terminated' (Diputus), except alasan "Kontrak habis" and tetap / freelance = 'expired' (Selesai).
+     * Returns whether one was ended.
      */
-    public function endActiveContractIfNotKontrak(): bool
+    public function endActiveContractIfNotKontrak(?\Carbon\Carbon $endsOn = null): bool
     {
         if ($this->status === 'kontrak') {
             return false;
@@ -460,21 +455,88 @@ class Employee extends Model
         $label = [
             'tetap' => 'diangkat menjadi karyawan tetap',
             'freelance' => 'status diubah menjadi freelance',
-            'tidak aktif' => 'tidak aktif' . ($this->nonaktif_alasan ? ' (' . (self::NONAKTIF_ALASAN[$this->nonaktif_alasan] ?? $this->nonaktif_alasan) . ')' : ''),
+            'tidak aktif' => 'tidak aktif' . ($this->nonaktif_alasan ? ' (' . (self::NONAKTIF_ALASAN[$this->nonaktif_alasan] ?? $this->nonaktif_alasan) . ')' : '')
+                . ($this->nonaktif_keterangan ? ', ' . $this->nonaktif_keterangan : ''),
         ][$this->status] ?? 'status diubah';
-        // Tidak aktif: the contract ends on the effective nonaktif date, otherwise today
-        $endsOn = $this->status === 'tidak aktif' && $this->nonaktif_tanggal ? $this->nonaktif_tanggal->copy() : today();
+        // Tidak aktif: the contract ends on the effective nonaktif date, otherwise today (or the given day)
+        $endsOn = $endsOn ? $endsOn->copy()
+            : ($this->status === 'tidak aktif' && $this->nonaktif_tanggal ? $this->nonaktif_tanggal->copy() : today());
+
+        $terminated = $this->status === 'tidak aktif' && $this->nonaktif_alasan !== 'kontrak_habis';
 
         foreach ($contracts as $contract) {
+            // Never before the contract's own start (end_date < start_date)
+            $end = $contract->end_date->gt($endsOn) ? $endsOn : $contract->end_date;
             $contract->update([
-                'status' => $this->status === 'tidak aktif' ? 'terminated' : 'expired',
-                'end_date' => $contract->end_date->gt($endsOn) ? $endsOn : $contract->end_date,
+                'status' => $terminated ? 'terminated' : 'expired',
+                'end_date' => $end->lt($contract->start_date) ? $contract->start_date : $end,
                 'notes' => trim(($contract->notes ? $contract->notes . "\n\n" : '') . 'Berakhir ' . $endsOn->format('d/m/Y') . ': ' . $label . '.'),
             ]);
         }
 
         return $contracts->isNotEmpty();
     }
+
+    /**
+     * Nonaktif terjadwal: still working (status not tidak aktif) but HRD already filled the last working day
+     * (nonaktif_tanggal) and alasan, e.g. resign with notice or a contract that will not be renewed.
+     * `hrd:proses-nonaktif` makes the employee tidak aktif the day after.
+     */
+    public function nonaktifTerjadwal(): bool
+    {
+        return $this->status !== 'tidak aktif' && $this->nonaktif_tanggal && $this->nonaktif_alasan
+            && $this->nonaktif_tanggal->toDateString() >= self::JADWAL_NONAKTIF_SEJAK;
+    }
+
+    /**
+     * Scheduling started on this day. Older nonaktif data on a still-active employee is leftover, not a schedule:
+     * it is never carried out (hrd:sinkron-kontrak reports it, --fix clears it).
+     */
+    public const JADWAL_NONAKTIF_SEJAK = '2026-11-14';
+
+    /** Active employees whose scheduled last working day has passed. */
+    public function scopeNonaktifJatuhTempo(Builder $query): Builder
+    {
+        return $query->whereNotNull('nonaktif_alasan')
+            ->where('nonaktif_tanggal', '>=', self::JADWAL_NONAKTIF_SEJAK)
+            ->where('nonaktif_tanggal', '<', today()->toDateString());
+    }
+
+    /** Carry out a scheduled nonaktif (status tidak aktif, running contract ended on the last day), with log. */
+    public function prosesNonaktifTerjadwal(): void
+    {
+        \Illuminate\Support\Facades\DB::transaction(function () {
+            $before = EmployeeLog::snapshot($this);
+            $this->update(['status' => 'tidak aktif']);
+            $ended = $this->endActiveContractIfNotKontrak();
+            EmployeeLog::note($this->id, 'kontrak', 'Status', null, 'Nonaktif terjadwal dijalankan (hari terakhir '
+                . $this->nonaktif_tanggal->format('d/m/Y') . ')' . ($ended ? ', kontrak aktif diakhiri' : ''));
+            $this->unsetRelations();
+            EmployeeLog::recordDiff($this->id, $before, EmployeeLog::snapshot($this));
+        });
+    }
+
+    /**
+     * Total days under contract over the whole history (PKWT may last 5 years at most, PP 35/2021),
+     * counting each period once even when periods overlap.
+     */
+    public function totalHariKontrak(?iterable $contracts = null): int
+    {
+        $periods = collect($contracts ?? $this->contracts)->sortBy('start_date')->values();
+        $total = 0;
+        $coveredUntil = null;
+        foreach ($periods as $c) {
+            $start = $coveredUntil && $c->start_date->lte($coveredUntil) ? $coveredUntil->copy()->addDay() : $c->start_date;
+            if ($c->end_date->gte($start)) {
+                $total += (int) round($start->diffInDays($c->end_date)) + 1;
+                $coveredUntil = $c->end_date;
+            }
+        }
+
+        return $total;
+    }
+
+    public const PKWT_MAKS_HARI = 1826; // 5 tahun
 
     public function isManager()
     {
