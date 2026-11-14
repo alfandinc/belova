@@ -250,9 +250,13 @@ class ImporWilayahKemendagri extends Command
 
         $prov = DB::table('area_provinces')->get()->keyBy('id');
         $reg = DB::table('area_regencies')->get()->keyBy('id');
-        $dis = DB::table('area_districts')->get();
+        $dis = DB::table('area_districts')->orderBy('id')->get();
         $disByReg = $dis->groupBy('regency_id');
-        $vilByDis = DB::table('area_villages')->get(['id', 'name', 'district_id'])->groupBy('district_id');
+        // Ordered by id and with the stored code: twin names (kelurahan + desa with one name in one kecamatan,
+        // e.g. Urimessing 1011 / 2005) keep the code they already have instead of swapping on every run
+        $vilByDis = DB::table('area_villages')->orderBy('id')
+            ->get($this->hasKode ? ['id', 'name', 'district_id', 'kode_kemendagri'] : ['id', 'name', 'district_id'])
+            ->groupBy('district_id');
 
         // Provinsi
         $provMap = [];
@@ -372,8 +376,9 @@ class ImporWilayahKemendagri extends Command
         foreach ($kd[4] as $code => $name) {
             if (isset(self::VIL_ALIAS[$code]) && isset($matched[self::VIL_ALIAS[$code]])) continue;
             $did = $disMap[substr($code, 0, 8)] ?? null;
-            $hit = ($did ? ($vilByDis[$did] ?? collect()) : collect())
-                ->first(fn($v) => !isset($matched[$v->id]) && $this->norm($v->name) === $this->norm($name));
+            $pool = $did ? ($vilByDis[$did] ?? collect()) : collect();
+            $hit = $pool->first(fn($v) => !isset($matched[$v->id]) && ($v->kode_kemendagri ?? null) === $code)
+                ?? $pool->first(fn($v) => !isset($matched[$v->id]) && $this->norm($v->name) === $this->norm($name));
             if ($hit) {
                 $matched[$hit->id] = true;
                 $this->code('area_villages', $hit->id, $code);
