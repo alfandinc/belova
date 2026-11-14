@@ -86,6 +86,21 @@
     #modalAlurPelayanan .alur-wait-late { color: #dc3545; font-weight: 700; }
     #modalAlurPelayanan .alur-wait-warn { color: #d39e00; font-weight: 700; }
     #modalAlurPelayanan .alur-tl { list-style: none; padding: 0; margin: 0; }
+    /* Read-only bill under the timeline */
+    /* Timeline left, tagihan right; stacked on narrow screens */
+    #modalAlurPelayanan .alur-tl-grid { display: grid; grid-template-columns: minmax(230px, 2fr) 3fr; gap: 24px; align-items: start; }
+    #modalAlurPelayanan .alur-bill { padding-left: 24px; border-left: 1px solid rgba(128,128,128,.2); min-width: 0; }
+    @media (max-width: 767.98px) {
+        #modalAlurPelayanan .alur-tl-grid { grid-template-columns: 1fr; gap: 0; }
+        #modalAlurPelayanan .alur-bill { padding-left: 0; border-left: 0; margin-top: 18px; padding-top: 14px; border-top: 1px solid rgba(128,128,128,.2); }
+    }
+    #modalAlurPelayanan .alur-bill-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+    #modalAlurPelayanan .alur-bill-table { width: 100%; font-size: 13px; }
+    #modalAlurPelayanan .alur-bill-table th { font-size: 11px; font-weight: 600; opacity: .65; padding: 4px 6px; border-bottom: 1px solid rgba(128,128,128,.2); }
+    #modalAlurPelayanan .alur-bill-table td { padding: 5px 6px; vertical-align: top; border-bottom: 1px solid rgba(128,128,128,.1); }
+    #modalAlurPelayanan .alur-bill-table .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    #modalAlurPelayanan .alur-bill-table tfoot td { border-bottom: 0; font-weight: 700; }
+    #modalAlurPelayanan .alur-bill-note { font-size: 12px; opacity: .7; margin-top: 6px; }
     #modalAlurPelayanan .alur-tl li { position: relative; padding: 0 0 14px 26px; }
     #modalAlurPelayanan .alur-tl li::before { content: ''; position: absolute; left: 6px; top: 4px; width: 12px; height: 12px; border-radius: 50%;
         background: rgba(128,128,128,.35); }
@@ -128,7 +143,8 @@ window.AlurPelayanan = (function ($) {
     var URLS = {
         summary: @json(route('erm.alur-pelayanan.summary')),
         list: @json(route('erm.alur-pelayanan.list')),
-        timeline: @json(url('erm/alur-pelayanan/__ID__/timeline'))
+        timeline: @json(url('erm/alur-pelayanan/__ID__/timeline')),
+        tagihan: @json(url('erm/alur-pelayanan/__ID__/tagihan'))
     };
     var LATE_MINUTES = @json(\App\Services\ERM\AlurPelayanan::LATE_MINUTES); // waiting longer than this is flagged
 
@@ -139,7 +155,11 @@ window.AlurPelayanan = (function ($) {
     var refreshTimer = null;
     var lastListStage = null;
 
-    function esc(s) { return $('<div>').text(s == null ? '' : String(s)).html(); }
+    // also escapes quotes: values go into title="" attributes (obat names may contain ")
+    function esc(s) {
+        return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+    }
 
     function durasi(menit) {
         if (menit == null) return '';
@@ -281,6 +301,7 @@ window.AlurPelayanan = (function ($) {
     function openList(stage) {
         var st = STAGES[stage];
         lastListStage = stage;
+        $('#modalAlurPelayanan .modal-dialog').removeClass('modal-xl');
         $('#alur-modal-title').html('<i class="' + st.icon + ' mr-1" style="color:' + st.color + '"></i>' + esc(st.label));
         $('#alur-modal-sub').text(st.desc);
         $('#alur-modal-back').hide();
@@ -312,7 +333,47 @@ window.AlurPelayanan = (function ($) {
         });
     }
 
+    function rupiah(n) { return 'Rp ' + Math.round(Number(n) || 0).toLocaleString('id-ID'); }
+
+    /** Read-only bill (items + prices) under the timeline: perawat / pendaftaran can inform the patient, nothing is editable. */
+    function loadTagihan(id) {
+        $.getJSON(URLS.tagihan.replace('__ID__', encodeURIComponent(id))).done(function (b) {
+            var $box = $('#alur-bill');
+            if (!$box.length) return;
+            var head = '<div class="alur-bill-head"><div class="font-weight-bold">Tagihan'
+                + (b.invoice && b.invoice.nomor ? ' <small class="text-muted font-weight-normal">' + esc(b.invoice.nomor) + '</small>' : '')
+                + '</div>' + payHtml(b.status) + '</div>';
+            if (!b.items || !b.items.length) {
+                $box.html(head + '<div class="small text-muted">Belum ada item tagihan.</div>');
+                return;
+            }
+            var rows = b.items.map(function (it) {
+                var qty = Number(it.qty) || 1;
+                return '<tr><td>' + esc(it.nama)
+                    + (it.diskon > 0 ? '<div class="small text-muted">diskon ' + rupiah(it.diskon) + '</div>' : '') + '</td>'
+                    + '<td class="num">' + esc(qty % 1 ? qty.toLocaleString('id-ID') : qty) + '</td>'
+                    + '<td class="num">' + rupiah(it.harga) + '</td>'
+                    + '<td class="num">' + rupiah(it.total) + '</td></tr>';
+            }).join('');
+            var foot = '<tr><td colspan="3">Total item</td><td class="num">' + rupiah(b.total_item) + '</td></tr>';
+            if (b.invoice && b.final) {
+                if (Math.round(b.invoice.total) !== Math.round(b.total_item)) {
+                    foot += '<tr><td colspan="3">Total invoice</td><td class="num">' + rupiah(b.invoice.total) + '</td></tr>';
+                }
+                foot += '<tr><td colspan="3">Dibayar</td><td class="num">' + rupiah(b.invoice.dibayar) + '</td></tr>';
+                if (b.invoice.kembalian > 0) foot += '<tr><td colspan="3">Kembalian</td><td class="num">' + rupiah(b.invoice.kembalian) + '</td></tr>';
+            }
+            $box.html(head + '<table class="alur-bill-table"><thead><tr><th>Item</th><th class="num">Qty</th><th class="num">Harga</th><th class="num">Subtotal</th></tr></thead>'
+                + '<tbody>' + rows + '</tbody><tfoot>' + foot + '</tfoot></table>'
+                + '<div class="alur-bill-note"><i class="fas fa-lock mr-1"></i>Hanya untuk dilihat.'
+                + (b.final ? '' : ' Belum dibayar: kasir masih bisa mengubah item atau diskon, jadi total bisa berubah.') + '</div>');
+        }).fail(function () {
+            $('#alur-bill').html('<div class="small text-danger">Gagal memuat tagihan.</div>');
+        });
+    }
+
     function openTimeline(id, fromList) {
+        $('#modalAlurPelayanan .modal-dialog').addClass('modal-xl'); // room for timeline + tagihan side by side
         $('#alur-modal-title').text('Timeline Pelayanan');
         $('#alur-modal-sub').text('');
         $('#alur-modal-back').toggle(!!fromList);
@@ -322,14 +383,15 @@ window.AlurPelayanan = (function ($) {
         $.getJSON(URLS.timeline.replace('__ID__', encodeURIComponent(id))).done(function (t) {
             var st = STAGES[t.tahap] || { label: t.tahap, color: '#6c757d', icon: 'fas fa-circle', desc: '' };
             $('#alur-modal-sub').text(t.nama_pasien + ' · ' + t.no_rm);
-            var html = '<div class="mb-3">Tahap sekarang: ' + badgeHtml(t)
+            var html = '<div class="alur-tl-grid"><div><div class="mb-3">Tahap sekarang: ' + badgeHtml(t)
                 + '<div class="small text-muted mt-1">' + esc(st.desc) + '</div></div><ul class="alur-tl">';
             (t.steps || []).forEach(function (s) {
                 html += '<li class="' + (s.at ? 'is-done' : '') + '"><div class="font-weight-bold">' + esc(s.label) + '</div>'
                     + '<small class="text-muted">' + (s.at ? esc(s.at) + (s.durasi != null ? ' · +' + esc(durasi(s.durasi)) : '') : 'belum') + '</small></li>';
             });
-            html += '</ul>';
+            html += '</ul></div><div class="alur-bill" id="alur-bill"><div class="small text-muted"><span class="spinner-border spinner-border-sm mr-1"></span>Memuat tagihan…</div></div></div>';
             $('#alur-modal-body').html(html);
+            loadTagihan(id);
         }).fail(function () {
             $('#alur-modal-body').html('<div class="alert alert-danger mb-0">Gagal memuat timeline.</div>');
         });

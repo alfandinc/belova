@@ -6299,15 +6299,12 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 // 2) Has invoice but not fully paid (Belum Transaksi / Belum Lunas / Piutang not paid)
                 ->orWhereHas('invoice', function ($inv) {
                     $inv->where(function ($x) {
-                        // Normal non-piutang: not fully paid
-                        $x->where(function ($pm) {
-                            $pm->whereNull('payment_method')
-                               ->orWhere('payment_method', '');
-                        })->where(function ($paid) {
-                            $paid->whereNull('total_amount')
-                                 ->orWhere('total_amount', '<=', 0)
-                                 ->orWhereColumn('amount_paid', '<', 'total_amount');
-                        });
+                        // Normal (not piutang / asuransi, any or no payment method): not Lunas — same rule as the
+                        // Belum Transaksi + Belum Lunas cards (a cash invoice paid partly or Rp 0 still counts)
+                        $x->whereRaw("LOWER(COALESCE(payment_method, '')) <> 'piutang'")
+                          ->whereRaw("LOWER(COALESCE(payment_method, '')) NOT LIKE 'asuransi\\_%'")
+                          ->whereRaw("((COALESCE(total_amount, 0) > 0 AND COALESCE(amount_paid, 0) < total_amount - COALESCE(retur_amount, 0))"
+                              . " OR (COALESCE(total_amount, 0) <= 0 AND COALESCE(status, '') <> 'paid'))");
                     })->orWhere(function ($insurance) {
                         $insurance->where('payment_method', 'like', 'asuransi_%')
                             ->where(fn ($open) => $this->exceptSettledZeroTotal($open))

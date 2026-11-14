@@ -80,6 +80,13 @@ class AlurPelayanan
             . " AND " . self::invoiceTransactedSql('ap_fi') . ")";
     }
 
+    /** The kasir processed this visit's invoice (same rule as the stages). */
+    public static function isTransacted(string $visitationId): bool
+    {
+        return DB::table('erm_visitations as v')->where('v.id', $visitationId)
+            ->whereRaw(self::transactedSql('v'))->exists();
+    }
+
     /**
      * Invoice $i was processed by the kasir — same rule as the Billing row label / "Belum Transaksi" card:
      * something paid, a piutang / asuransi invoice, or a Rp 0 invoice marked paid.
@@ -89,7 +96,7 @@ class AlurPelayanan
         return "(COALESCE({$i}.amount_paid, 0) > 0"
             . " OR LOWER(COALESCE({$i}.payment_method, '')) = 'piutang'"
             . " OR LOWER(COALESCE({$i}.payment_method, '')) LIKE 'asuransi\\_%'"
-            . " OR (COALESCE({$i}.total_amount, 0) <= 0 AND {$i}.status = 'paid'))";
+            . " OR (COALESCE({$i}.total_amount, 0) <= 0 AND COALESCE({$i}.status, '') = 'paid'))";
     }
 
     /** The visit has something to pay: an active billing row (what the Billing page lists) or an invoice. */

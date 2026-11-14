@@ -667,6 +667,7 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::get('/alur-pelayanan/summary', [\App\Http\Controllers\ERM\AlurPelayananController::class, 'summary'])->name('erm.alur-pelayanan.summary');
     Route::get('/alur-pelayanan/list', [\App\Http\Controllers\ERM\AlurPelayananController::class, 'list'])->name('erm.alur-pelayanan.list');
     Route::get('/alur-pelayanan/{visitation}/timeline', [\App\Http\Controllers\ERM\AlurPelayananController::class, 'timeline'])->name('erm.alur-pelayanan.timeline');
+    Route::get('/alur-pelayanan/{visitation}/tagihan', [\App\Http\Controllers\ERM\AlurPelayananController::class, 'tagihan'])->name('erm.alur-pelayanan.tagihan');
 });
 
 // Manajemen Stok, Transfer Antar Gudang & Penyesuaian Stok: the ERM roles plus Marketing
