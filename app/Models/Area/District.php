@@ -10,7 +10,7 @@ class District extends Model
     use HasFactory;
 
     protected $table = 'area_districts';
-    protected $fillable = ['name', 'regency_id'];
+    protected $fillable = ['name', 'regency_id', 'kode_kemendagri'];
 
     public function villages()
     {

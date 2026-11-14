@@ -10,7 +10,7 @@ class Regency extends Model
     use HasFactory;
 
     protected $table = 'area_regencies';
-    protected $fillable = ['name', 'province_id'];
+    protected $fillable = ['name', 'province_id', 'kode_kemendagri'];
 
     public function districts()
     {

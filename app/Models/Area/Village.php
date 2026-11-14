@@ -10,7 +10,7 @@ class Village extends Model
     use HasFactory;
 
     protected $table = 'area_villages';
-    protected $fillable = ['name', 'district_id'];
+    protected $fillable = ['name', 'district_id', 'kode_kemendagri'];
 
     /**
      * The district this village belongs to.

@@ -54,7 +54,37 @@
     }
     #employees-table_wrapper table.dataTable tbody tr:hover > .dtfc-fixed-left,
     #employees-table_wrapper table.dataTable tbody tr:hover > .dtfc-fixed-right { filter: brightness(1.03); }
-    .stat-colon { font-weight: 400; margin: 0 10px; color: inherit; }
+    /* Header, ringkasan, chip tindak lanjut, toolbar (theme-neutral: works on light and dark) */
+    .emp-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 14px; }
+    .emp-head-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .emp-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 12px; }
+    .emp-stat { display: flex; flex-direction: column; gap: 2px; padding: 10px 14px; border-radius: 8px; border: 1px solid rgba(127, 127, 127, .2); border-left: 4px solid rgba(127, 127, 127, .45); background: rgba(127, 127, 127, .05); }
+    .emp-stat-success { border-left-color: #28a745; }
+    .emp-stat-warning { border-left-color: #ffc107; }
+    .emp-stat-info { border-left-color: #17a2b8; }
+    .emp-stat-primary { border-left-color: #e83e8c; }
+    .emp-stat-label { font-size: 12px; opacity: .7; white-space: nowrap; }
+    .emp-stat-value { font-size: 20px; font-weight: 700; line-height: 1.2; white-space: nowrap; }
+    .emp-stat-sep { opacity: .4; font-weight: 400; }
+    .emp-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 12px; }
+    .emp-chips-label { font-size: 12px; font-weight: 600; opacity: .7; margin-right: 4px; }
+    .emp-chips .quick-chip { border-radius: 20px; }
+    /* Toolbar: filters + search in one row, entries / info / pages below the table */
+    #employees-table_wrapper .top { margin-bottom: 10px; }
+    #employees-table_wrapper .dataTables_filter { float: none; text-align: left; }
+    #employees-table_wrapper .dataTables_filter label { margin: 0; font-size: 0; text-transform: none; }
+    #employees-table_wrapper .dataTables_filter input { margin: 0; width: 240px; max-width: 100%; font-size: .8125rem; }
+    #employeeToolbar { gap: 8px 0; }
+    #employees-table_wrapper .bottom { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; margin-top: 10px; }
+    #employees-table_wrapper .bottom .dataTables_length label,
+    #employees-table_wrapper .bottom .dataTables_info { margin: 0; padding: 0; font-size: 13px; text-transform: none; font-weight: 400; letter-spacing: normal; }
+    #employees-table_wrapper .bottom .dataTables_length select { width: auto; display: inline-block; margin: 0 4px; }
+    #employees-table_wrapper .bottom .dataTables_paginate { margin: 0; }
+    @media (max-width: 575px) {
+        #employees-table_wrapper .dataTables_filter label { width: 100%; }
+        #employees-table_wrapper .dataTables_filter input { width: 100%; }
+        #employeeToolbar select { width: 100% !important; margin-right: 0 !important; }
+    }
     .badge-info { background-color: #17a2b8; color: #fff; }
     .badge-warning { color: #212529; }
     .quick-chip.active { box-shadow: 0 0 0 2px rgba(0, 0, 0, .25); }
@@ -132,50 +162,50 @@
     }
 </style>
 <div class="container-fluid">
-    <div class="row mb-2">
-        <div class="col-12 d-flex flex-wrap justify-content-between align-items-start">
-            <div>
-                <h3 class="mb-0 font-weight-bold">Data Karyawan</h3>
-                <div class="text-muted small">Kelola data karyawan, filter berdasarkan divisi, perusahaan, dan status aktif.</div>
-                <div id="employee-stats" class="mt-3">
-                    <div class="d-flex flex-wrap align-items-center" style="gap:12px;">
-                        <div class="mr-4 mb-1"><span class="badge badge-warning">Kontrak</span><span class="stat-colon">:</span><strong id="stat-kontrak">0</strong></div>
-                        <div class="mr-4 mb-1"><span class="badge badge-success">Tetap</span><span class="stat-colon">:</span><strong id="stat-tetap">0</strong></div>
-                        <div class="mr-4 mb-1"><span class="badge badge-info">Freelance</span><span class="stat-colon">:</span><strong id="stat-freelance">0</strong></div>
-                        <div class="mr-4 mb-1"><span class="badge badge-secondary">Rata-rata Usia</span><span class="stat-colon">:</span><strong id="stat-usia">-</strong></div>
-                        <div class="mr-4 mb-1"><span class="badge badge-primary">Laki-laki</span><span class="stat-colon">:</span><strong id="stat-male">0</strong></div>
-                        <div class="mr-4 mb-1"><span class="badge" style="background:#e83e8c;color:#fff;">Perempuan</span><span class="stat-colon">:</span><strong id="stat-female">0</strong></div>
-                    </div>
-                </div>
-            </div>
-            <div class="mt-2 mt-sm-0 text-nowrap">
-                <a href="#" class="btn btn-outline-success" id="btn-export" title="Export daftar sesuai filter ke Excel">
-                    <i class="fas fa-file-excel mr-1"></i> Export
-                </a>
-                @if($canManage)
-                <button type="button" class="btn btn-primary" id="btn-add-employee">
-                    <i class="fas fa-plus mr-1"></i> Tambah Karyawan
-                </button>
-                @endif
-            </div>
+    <div class="emp-head">
+        <div>
+            <h3 class="mb-0 font-weight-bold">Data Karyawan</h3>
+            <div class="text-muted small">Kelola data karyawan, filter berdasarkan divisi, perusahaan, dan status aktif.</div>
+        </div>
+        <div class="emp-head-actions">
+            <a href="#" class="btn btn-outline-success" id="btn-export" title="Export daftar sesuai filter ke Excel">
+                <i class="fas fa-file-excel mr-1"></i> Export
+            </a>
+            @if($canManage)
+            <button type="button" class="btn btn-primary" id="btn-add-employee">
+                <i class="fas fa-plus mr-1"></i> Tambah Karyawan
+            </button>
+            @endif
         </div>
     </div>
 
-    {{-- Perlu tindak lanjut: click a chip to show only those employees (karyawan aktif, regardless of the filters) --}}
-    <div id="quick-chips" class="d-flex flex-wrap align-items-center mb-2" style="gap:6px;">
-        <span class="small text-muted mr-1">Perlu tindak lanjut:</span>
-        <button type="button" class="btn btn-sm quick-chip" data-quick="kontrak_segera" data-color="warning"><i class="fas fa-hourglass-half mr-1"></i>Kontrak habis ≤ 30 hari <span class="badge badge-light ml-1" data-count>0</span></button>
-        <button type="button" class="btn btn-sm quick-chip" data-quick="kontrak_lewat" data-color="danger"><i class="fas fa-exclamation-circle mr-1"></i>Kontrak sudah lewat <span class="badge badge-light ml-1" data-count>0</span></button>
-        <button type="button" class="btn btn-sm quick-chip" data-quick="kontrak_kosong" data-color="danger"><i class="fas fa-file-contract mr-1"></i>Kontrak tanpa tanggal <span class="badge badge-light ml-1" data-count>0</span></button>
-        <button type="button" class="btn btn-sm quick-chip" data-quick="belum_lengkap" data-color="secondary"><i class="fas fa-user-edit mr-1"></i>Data belum lengkap <span class="badge badge-light ml-1" data-count>0</span></button>
-        <button type="button" class="btn btn-sm quick-chip" data-quick="tanpa_finger" data-color="secondary"><i class="fas fa-fingerprint mr-1"></i>Tanpa Finger ID <span class="badge badge-light ml-1" data-count>0</span></button>
-        <button type="button" class="btn btn-sm quick-chip" data-quick="tanpa_akun" data-color="secondary"><i class="fas fa-user-lock mr-1"></i>Belum punya akun <span class="badge badge-light ml-1" data-count>0</span></button>
-        <button type="button" class="btn btn-sm quick-chip" data-quick="baru" data-color="info"><i class="fas fa-user-plus mr-1"></i>Karyawan baru ≤ 3 bln <span class="badge badge-light ml-1" data-count>0</span></button>
-        <button type="button" class="btn btn-sm quick-chip" data-quick="ultah" data-color="info"><i class="fas fa-birthday-cake mr-1"></i>Ulang tahun bulan ini <span class="badge badge-light ml-1" data-count>0</span></button>
+    {{-- Ringkasan: follows the filters (rows shown in the table) --}}
+    <div id="employee-stats" class="emp-stats">
+        <div class="emp-stat"><span class="emp-stat-label">Total</span><span class="emp-stat-value" id="stat-total">0</span></div>
+        <div class="emp-stat emp-stat-success"><span class="emp-stat-label">Tetap</span><span class="emp-stat-value" id="stat-tetap">0</span></div>
+        <div class="emp-stat emp-stat-warning"><span class="emp-stat-label">Kontrak</span><span class="emp-stat-value" id="stat-kontrak">0</span></div>
+        <div class="emp-stat emp-stat-info"><span class="emp-stat-label">Freelance</span><span class="emp-stat-value" id="stat-freelance">0</span></div>
+        <div class="emp-stat emp-stat-primary"><span class="emp-stat-label">Laki-laki / Perempuan</span><span class="emp-stat-value"><span id="stat-male">0</span> <span class="emp-stat-sep">/</span> <span id="stat-female">0</span></span></div>
+        <div class="emp-stat"><span class="emp-stat-label">Rata-rata usia</span><span class="emp-stat-value" id="stat-usia">-</span></div>
+    </div>
+
+    {{-- Perlu tindak lanjut: click a chip to show only those employees (karyawan aktif, regardless of the filters).
+         Chips with nothing to show are hidden. --}}
+    <div id="quick-chips" class="emp-chips">
+        <span class="emp-chips-label"><i class="fas fa-bell mr-1"></i>Perlu tindak lanjut</span>
+        <span class="small text-muted" id="quick-none" style="display:none;"><i class="fas fa-check-circle text-success mr-1"></i>Tidak ada yang perlu ditindaklanjuti</span>
+        <button type="button" class="btn btn-sm quick-chip" style="display:none;" data-quick="kontrak_segera" data-color="warning"><i class="fas fa-hourglass-half mr-1"></i>Kontrak habis ≤ 30 hari <span class="badge badge-light ml-1" data-count>0</span></button>
+        <button type="button" class="btn btn-sm quick-chip" style="display:none;" data-quick="kontrak_lewat" data-color="danger"><i class="fas fa-exclamation-circle mr-1"></i>Kontrak sudah lewat <span class="badge badge-light ml-1" data-count>0</span></button>
+        <button type="button" class="btn btn-sm quick-chip" style="display:none;" data-quick="kontrak_kosong" data-color="danger"><i class="fas fa-file-contract mr-1"></i>Kontrak tanpa tanggal <span class="badge badge-light ml-1" data-count>0</span></button>
+        <button type="button" class="btn btn-sm quick-chip" style="display:none;" data-quick="belum_lengkap" data-color="secondary"><i class="fas fa-user-edit mr-1"></i>Data belum lengkap <span class="badge badge-light ml-1" data-count>0</span></button>
+        <button type="button" class="btn btn-sm quick-chip" style="display:none;" data-quick="tanpa_finger" data-color="secondary"><i class="fas fa-fingerprint mr-1"></i>Tanpa Finger ID <span class="badge badge-light ml-1" data-count>0</span></button>
+        <button type="button" class="btn btn-sm quick-chip" style="display:none;" data-quick="tanpa_akun" data-color="secondary"><i class="fas fa-user-lock mr-1"></i>Belum punya akun <span class="badge badge-light ml-1" data-count>0</span></button>
+        <button type="button" class="btn btn-sm quick-chip" style="display:none;" data-quick="baru" data-color="info"><i class="fas fa-user-plus mr-1"></i>Karyawan baru ≤ 3 bln <span class="badge badge-light ml-1" data-count>0</span></button>
+        <button type="button" class="btn btn-sm quick-chip" style="display:none;" data-quick="ultah" data-color="info"><i class="fas fa-birthday-cake mr-1"></i>Ulang tahun bulan ini <span class="badge badge-light ml-1" data-count>0</span></button>
         <button type="button" class="btn btn-sm btn-link px-1" id="quick-reset" style="display:none;"><i class="fas fa-times mr-1"></i>Tampilkan semua</button>
     </div>
 
-    <!-- Filter toolbar (moved next to the DataTables search box) -->
+    <!-- Filter toolbar (moved in front of the DataTables search box) -->
     <div id="employeeToolbarHolder" class="d-none">
         <select id="filter-division" class="form-control form-control-sm mr-2" style="width: 200px; max-width: 100%;">
             <option value="all">-- Semua Divisi --</option>
@@ -488,14 +518,15 @@ $(function() {
         scrollCollapse: true,
         autoWidth: false,
         fixedColumns: { left: 1, right: 1 }, // Nama, Aksi
-        dom: '<"top"fl>rt<"bottom"ip><"clear">',
+        dom: '<"top"f>rt<"bottom"lip>',
         pageLength: -1,
         lengthMenu: [[10, 25, 50, -1], [10, 25, 50, 'Semua']],
         order: [[0, 'asc']], // nama; contract urgency is covered by the chips
         language: {
             processing: '<i class="fa fa-spinner fa-spin fa-3x fa-fw"></i><span class="sr-only">Loading...</span>',
-            search: 'Cari:',
-            lengthMenu: 'Tampilkan _MENU_ entri',
+            search: '',
+            searchPlaceholder: 'Cari nama, NIK, no HP…',
+            lengthMenu: 'Tampilkan _MENU_ baris',
             info: 'Menampilkan _START_ sampai _END_ dari _TOTAL_ entri',
             infoEmpty: 'Menampilkan 0 sampai 0 dari 0 entri',
             infoFiltered: '(disaring dari _MAX_ entri keseluruhan)',
@@ -708,23 +739,27 @@ $(function() {
                 }
             }
         });
+        $('#stat-total').text(rows.length);
         $('#stat-kontrak').text(count.kontrak);
         $('#stat-tetap').text(count.tetap);
         $('#stat-freelance').text(count.freelance);
         $('#stat-male').text(count.male);
         $('#stat-female').text(count.female);
-        $('#stat-usia').text(ageCount ? Math.round(ageSum / ageCount * 10) / 10 + ' Tahun' : '-');
+        $('#stat-usia').text(ageCount ? Math.round(ageSum / ageCount * 10) / 10 + ' thn' : '-');
     }
 
     function renderSummary(summary) {
+        var shown = 0;
         $('.quick-chip').each(function() {
             var $chip = $(this), key = $chip.data('quick'), n = summary[key] || 0, active = quickFilter === key;
             $chip.find('[data-count]').text(n);
-            $chip.toggleClass('btn-' + $chip.data('color'), n > 0 || active)
-                 .toggleClass('btn-outline-secondary', !n && !active)
+            // Nothing to follow up: hide the chip (kept while it is the active filter)
+            $chip.toggleClass('btn-' + $chip.data('color'), true)
                  .toggleClass('active', active)
-                 .prop('disabled', !n && !active);
+                 .toggle(n > 0 || active);
+            if (n > 0 || active) shown++;
         });
+        $('#quick-none').toggle(!shown);
         $('#quick-reset').toggle(!!quickFilter);
     }
 
@@ -747,10 +782,20 @@ $(function() {
     // Move custom filters next to the DataTables search box
     var $toolbarContent = $('#employeeToolbarHolder').children().detach();
     var $filter = $('#employees-table_wrapper').find('.dataTables_filter');
-    $filter.addClass('d-flex align-items-center justify-content-end flex-wrap');
-    $filter.prepend($('<div class="d-flex align-items-center flex-wrap mb-2 mb-sm-0" id="employeeToolbar"></div>').append($toolbarContent));
-    $filter.find('label').addClass('mb-0 ml-sm-3');
+    $filter.addClass('d-flex align-items-center justify-content-between flex-wrap').css('gap', '8px');
+    $filter.prepend($('<div class="d-flex align-items-center flex-wrap" id="employeeToolbar"></div>').append($toolbarContent));
+    $filter.find('input').addClass('form-control form-control-sm');
     $('#employeeToolbarHolder').remove();
+
+    // Header and body columns out of line after a resize or the sidebar toggle: realign
+    var adjustTimer;
+    $(window).on('resize', function() {
+        clearTimeout(adjustTimer);
+        adjustTimer = setTimeout(function() { table.columns.adjust(); }, 150);
+    });
+    $(document).on('click', '.button-menu-mobile, .left-menu-toggle, [data-toggle="sidebar"]', function() {
+        setTimeout(function() { table.columns.adjust(); }, 350);
+    });
 
     $('#' + FILTER_IDS.join(', #')).on('change', function() {
         toggleNonaktifFilters();
