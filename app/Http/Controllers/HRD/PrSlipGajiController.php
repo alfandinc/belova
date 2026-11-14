@@ -861,9 +861,72 @@ class PrSlipGajiController extends Controller
     // Return omset input fields for all available penghasil omset
     public function getOmsetInputs(Request $request)
     {
-        $bulan = $request->get('bulan');
-        $insentifOmset = \App\Models\HRD\PrInsentifOmset::all();
-        return view('hrd.payroll.slip_gaji.buat._omset_inputs', compact('insentifOmset'))->render();
+        $bulan = (string) $request->get('bulan');
+        if (!preg_match('/^\d{4}-\d{2}$/', $bulan)) {
+            return response('', 422);
+        }
+        $insentifOmset = \App\Models\HRD\PrInsentifOmset::orderBy('id')->get();
+        // what was saved for this month (null = never saved)
+        $saved = \App\Models\HRD\PrOmsetBulanan::where('bulan', $bulan)->pluck('nominal', 'insentif_omset_id');
+        $sources = $this->omsetSistemSources($bulan);
+        $suggested = $insentifOmset->mapWithKeys(fn ($row) => [$row->id => $this->suggestOmsetSource($row->nama_penghasil, $sources)]);
+        $periode = \Carbon\Carbon::createFromFormat('Y-m', $bulan)->translatedFormat('F Y');
+
+        return view('hrd.payroll.slip_gaji.buat._omset_inputs', compact('insentifOmset', 'saved', 'sources', 'suggested', 'periode'))->render();
+    }
+
+    /**
+     * Omset of the month from the system, same numbers as Laporan Omset (App\Support\Dashboard\Revenue: transacted
+     * invoices minus approved returs, clinic cut off): key => [label, group, nominal].
+     */
+    private function omsetSistemSources(string $bulan): array
+    {
+        $from = \Carbon\Carbon::createFromFormat('Y-m', $bulan)->startOfMonth();
+        $to = $from->copy()->endOfMonth();
+        $clinics = \App\Support\Dashboard\Clinics::all();
+        $byKlinik = \App\Support\Dashboard\Revenue::byKlinik($from, $to);
+
+        // klinik × Umum / Asuransi (the visit's metode bayar), returs as negative rows
+        $metode = \App\Support\Dashboard\Revenue::withMetodeBayar(\App\Support\Dashboard\Revenue::between($from, $to)
+            ->leftJoin('erm_visitations as v', 'v.id', '=', 'fi.visitation_id')
+            ->selectRaw('v.klinik_id, SUM(fi.total_amount) as total, COUNT(*) as invoices')
+            ->groupBy('v.klinik_id'))
+            ->get()
+            ->concat(\App\Support\Dashboard\Revenue::returByMetodeBayar($from, $to));
+        $umumOf = fn ($klinikId) => (float) $metode->filter(fn ($r) => (int) $r->mb_asuransi !== 1 && (int) $r->klinik_id === (int) $klinikId)->sum('total');
+
+        $sources = [];
+        foreach ($clinics as $klinik) {
+            $sources['klinik:' . $klinik->id] = ['label' => $klinik->short . ' — semua', 'group' => 'Per klinik', 'nominal' => (float) ($byKlinik[$klinik->id] ?? 0)];
+            $sources['klinik_umum:' . $klinik->id] = ['label' => $klinik->short . ' — Umum saja (tanpa asuransi)', 'group' => 'Per klinik', 'nominal' => $umumOf($klinik->id)];
+        }
+        $sources['asuransi'] = ['label' => 'Asuransi — semua klinik', 'group' => 'Semua klinik', 'nominal' => (float) $metode->filter(fn ($r) => (int) $r->mb_asuransi === 1)->sum('total')];
+        foreach (\App\Support\Dashboard\Revenue::byCategory($from, $to) as $key => $nominal) {
+            $sources['kategori:' . $key] = ['label' => \App\Support\Dashboard\Revenue::CATEGORIES[$key] . ' — semua klinik', 'group' => 'Semua klinik', 'nominal' => (float) $nominal];
+        }
+        $sources['total'] = ['label' => 'Total omset — semua klinik', 'group' => 'Semua klinik', 'nominal' => \App\Support\Dashboard\Revenue::total($from, $to)];
+
+        return array_map(fn ($s) => ['nominal' => round($s['nominal'])] + $s, $sources);
+    }
+
+    /** Best guess of the system source for a penghasil omset by its name; null = keep manual. */
+    private function suggestOmsetSource(?string $nama, array $sources): ?string
+    {
+        $nama = strtolower((string) $nama);
+        if (str_contains($nama, 'asuransi')) {
+            return 'asuransi';
+        }
+        if (str_contains($nama, 'lab')) {
+            return 'kategori:lab';
+        }
+        foreach (\App\Support\Dashboard\Clinics::all() as $klinik) {
+            $short = strtolower((string) $klinik->short);
+            if ($short !== '' && preg_match('/\b' . preg_quote($short, '/') . '\b/', $nama) && isset($sources['klinik:' . $klinik->id])) {
+                return 'klinik:' . $klinik->id;
+            }
+        }
+
+        return null;
     }
 
     // Store omset bulanan (moved from OmsetBulananController)

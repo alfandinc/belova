@@ -2,6 +2,7 @@
 
 namespace App\Support\Dashboard\Widgets;
 
+use App\Models\Finance\Invoice;
 use App\Models\User;
 use App\Support\Dashboard\Clinics;
 use App\Support\Dashboard\Fmt;
@@ -10,7 +11,8 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
 /**
- * The cashier's day: totals over all clinics (received today, invoices not paid yet, open receivables),
+ * The cashier's day: totals over all clinics (money received today from the kas ledger, invoices not paid
+ * yet, open receivables),
  * then one section per clinic (the invoice's visit clinic) with its omset by the visit metode bayar
  * (Umum / Asuransi) and unpaid invoices.
  */
@@ -24,23 +26,32 @@ class KasirWidget implements Widget
         $today = Carbon::today();
         $yesterday = $today->copy()->subDay();
 
-        $paid = fn (Carbon $day) => DB::table('finance_invoices as fi')
-            ->leftJoin('erm_visitations as v', 'v.id', '=', 'fi.visitation_id')
-            ->whereNotNull('fi.payment_date')
-            ->whereIn('fi.status', ['paid', 'partial'])
-            ->whereBetween('fi.payment_date', [$day->copy()->startOfDay(), $day->copy()->endOfDay()]);
+        // Money really received that day (kas): every payment incl. DP / cicilan and piutang payments, minus
+        // change and refunds, with the clinic cut off. Same numbers as the finance report.
+        $amount = Revenue::cashAmountSql();
+        $paid = fn (Carbon $day) => Revenue::cashBetween($day, $day)
+            ->leftJoin('erm_visitations as v', 'v.id', '=', 'ft.visitation_id');
+        $invoicesPaid = "COUNT(DISTINCT CASE WHEN LOWER(COALESCE(ft.jenis_transaksi, 'in')) <> 'out' THEN ft.invoice_id END)";
 
         // klinik_id × the visit's metode bayar (Umum / insurer)
         $todayRows = Revenue::withMetodeBayar($paid($today)
-            ->selectRaw('v.klinik_id, SUM(fi.total_amount) as total, COUNT(*) as invoices')
+            ->selectRaw("v.klinik_id, SUM({$amount}) as total, {$invoicesPaid} as invoices")
             ->groupBy('v.klinik_id'))
             ->get();
         $yesterdayByKlinik = $paid($yesterday)
             ->groupBy('v.klinik_id')
-            ->selectRaw('v.klinik_id, SUM(fi.total_amount) as total')
+            ->selectRaw("v.klinik_id, SUM({$amount}) as total")
             ->get()
             ->groupBy(fn ($r) => Clinics::find($r->klinik_id)->id ?? 'none')
             ->map(fn ($rows) => (float) $rows->sum('total'));
+        // how the money came in (Tunai / QRIS / EDC / Transfer …): what the kasir counts at closing
+        $byCaraBayar = $paid($today)
+            ->groupBy('ft.metode_bayar')
+            ->selectRaw("ft.metode_bayar, SUM({$amount}) as total, {$invoicesPaid} as invoices")
+            ->get()
+            ->filter(fn ($r) => abs((float) $r->total) >= 0.5)
+            ->sortByDesc('total')
+            ->values();
 
         // Rp 0 invoices (fully discounted / empty) have nothing to collect
         $unpaidQuery = DB::table('finance_invoices as fi')
@@ -74,6 +85,12 @@ class KasirWidget implements Widget
             'total' => $total,
             'invoices' => (int) $todayRows->sum('invoices'),
             'metodeBayar' => $total > 0 ? Revenue::metodeBayarSplit($todayRows, $total) : null,
+            'caraBayar' => $byCaraBayar->map(fn ($r) => [
+                'label' => Invoice::PAYMENT_METHODS[$r->metode_bayar] ?? ($r->metode_bayar ? ucwords(str_replace('_', ' ', $r->metode_bayar)) : 'Lainnya'),
+                'total' => (float) $r->total,
+                'pct' => Fmt::share($r->total, $total),
+                'invoices' => (int) $r->invoices,
+            ])->all(),
             'trend' => Fmt::trend($total, (float) $yesterdayByKlinik->sum()),
             'unpaidCount' => (int) $unpaidRows->sum('invoices'),
             'unpaidAmount' => (float) $unpaidRows->sum('total'),

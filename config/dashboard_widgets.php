@@ -77,7 +77,7 @@ return [
     // Kasir
     'kasir' => [
         'name' => 'Kasir Hari Ini',
-        'description' => 'Pembayaran hari ini per metode, invoice belum dibayar, dan piutang. Saran: Kasir, Finance.',
+        'description' => 'Uang masuk hari ini (kas: termasuk DP & bayar piutang, dikurangi kembalian & refund) per cara bayar, invoice belum dibayar, dan piutang. Saran: Kasir, Finance.',
         'icon' => 'credit-card',
         'class' => Widgets\KasirWidget::class,
         'view' => 'dashboard.custom_widgets.kasir_widget',

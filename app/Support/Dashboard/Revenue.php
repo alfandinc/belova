@@ -85,6 +85,25 @@ class Revenue
     }
 
     /**
+     * Money actually received (kas): finance_transactions (ft) whose day falls in [$from, $to], with the clinic
+     * cut off of their visit. Sum cashAmountSql(): payments and piutang payments in, change and refunds out.
+     * Same source and date rule as the finance report (FinanceReportController), not omset.
+     */
+    public static function cashBetween(Carbon $from, Carbon $to): Builder
+    {
+        return DB::table('finance_transactions as ft')
+            ->where('ft.tanggal', '>=', $from->copy()->startOfDay())
+            ->where('ft.tanggal', '<', $to->copy()->addDay()->startOfDay()->addSeconds(self::maxCutoffSeconds()))
+            ->whereRaw(self::cutoffDateSql('ft.tanggal', 'ft.visitation_id') . ' BETWEEN ? AND ?', [$from->toDateString(), $to->toDateString()]);
+    }
+
+    /** Signed amount of a finance_transactions row (ft): out = money given back. */
+    public static function cashAmountSql(): string
+    {
+        return "CASE WHEN LOWER(COALESCE(ft.jenis_transaksi, 'in')) = 'out' THEN -ft.jumlah ELSE ft.jumlah END";
+    }
+
+    /**
      * Approved returs whose day (returDateSql) falls in [$from, $to], joined to their invoice as fi.
      * Sum r.total_amount (the refund).
      */
