@@ -170,8 +170,8 @@ class RoutineSchedule
     private static function matches(ContentRoutine $routine, array $filters): bool
     {
         if (!empty($filters['q'])) {
-            foreach (preg_split('/\s+/', $filters['q']) as $word) {
-                if (stripos($routine->judul, ltrim($word, '#')) === false) {
+            foreach (preg_split('/[^\p{L}\p{N}]+/u', $filters['q'], -1, PREG_SPLIT_NO_EMPTY) as $word) {
+                if (mb_stripos($routine->judul, $word) === false) {
                     return false;
                 }
             }

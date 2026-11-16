@@ -597,13 +597,22 @@ class ContentPlanController extends Controller
             if (preg_match('/^#?(\d+)$/', $q, $m)) {
                 $query->where(fn ($w) => $w->where('id', (int) $m[1])->orWhere('judul', 'like', '%' . $m[1] . '%'));
             } else {
-                foreach (preg_split('/\s+/', $q) as $word) {
+                foreach (self::searchWords($q) as $word) {
                     $query->where('judul', 'like', '%' . addcslashes($word, '%_\\') . '%');
                 }
             }
         }
 
         return $query;
+    }
+
+    /**
+     * Words of a search text without punctuation, so “curly” / "straight" quotes, commas, "?" or
+     * "ngik-ngik" vs "ngik ngik" don't make a title unfindable.
+     */
+    protected static function searchWords(string $q): array
+    {
+        return array_values(array_filter(preg_split('/[^\p{L}\p{N}]+/u', $q), fn ($w) => $w !== ''));
     }
 
     protected function applyOverdue($query, $scheduleBy)
@@ -875,8 +884,8 @@ class ContentPlanController extends Controller
             $routines = ContentRoutine::when($filters['mine'], fn ($w) => $w->where('assigned_to', $filters['mine']))
                 ->orderByDesc('is_active')->orderBy('judul')->get()
                 ->filter(function (ContentRoutine $r) use ($q, $filters) {
-                    foreach (preg_split('/\s+/', $q) as $word) {
-                        if (stripos($r->judul, ltrim($word, '#')) === false) {
+                    foreach (self::searchWords($q) as $word) {
+                        if (mb_stripos($r->judul, $word) === false) {
                             return false;
                         }
                     }
