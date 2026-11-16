@@ -236,7 +236,7 @@
                             @endforeach
                         </div>
                         <div class="dr-form-hint" id="drfSosmedHint" style="display:none">
-                            <i class="fas fa-info-circle mr-1"></i>Konten yang dijadwalkan di Content Plan cukup pilih <strong>Butuh designer</strong> di sana; job otomatis masuk ke sini.
+                            <i class="fas fa-info-circle mr-1"></i>Desain <strong>konten sosmed</strong> dibuat dari <a href="{{ url('/marketing/content-plan') }}">Content Plan</a>: buat jadwal kontennya lalu pilih <strong>Butuh designer</strong>; job otomatis masuk ke sini.
                         </div>
                     </div>
                     <div class="form-group">
@@ -720,6 +720,11 @@ $(function () {
         var buttons = acts.filter(function (a) { return ['comment', 'cancel'].indexOf(a.action) === -1; }).map(function (a) {
             return '<button type="button" class="btn btn-sm btn-' + a.style + ' js-action" data-action="' + a.action + '">' + esc(a.label) + '</button>';
         }).join('');
+        // old "Konten Sosmed" request made here directly: turn it into a scheduled content
+        if (d.jenis === 'Konten Sosmed' && !d.content_plan_id && d.can.is_marketing && d.status !== 'Dibatalkan') {
+            buttons += '<a class="btn btn-sm btn-outline-primary" href="' + CP_URL + '?from_design=' + d.id + '" target="_blank" rel="noopener">'
+                + '<i class="far fa-calendar-plus mr-1"></i>Jadikan Content Plan</a>';
+        }
         var hint = (contentJob ? CONTENT_HINT : STATUS_HINT)[d.status] || '';
         var html = '<div class="cp-workflow">' + steps(d.status)
             + '<div class="dr-wf-hint"><i class="fas fa-info-circle mr-1"></i>' + esc(hint) + '</div>'
@@ -818,9 +823,7 @@ $(function () {
             if (on) $(this).append('<span class="cp-chip-check"><i class="fas fa-check"></i></span>');
         });
         // print & packaging need sizes/materials; social content usually not
-        var linkedPlan = !!$('#drf_content_plan_id').val();
         $('#drfSpec').toggle(value !== 'Konten Sosmed');
-        $('#drfSosmedHint').toggle(value === 'Konten Sosmed' && !linkedPlan);
     }
     $('#drfJenisChips').on('click', '.cp-chip-opt', function () { setJenis($(this).data('value')); });
 
@@ -860,6 +863,11 @@ $(function () {
                 + (f.is_image ? '<img src="' + esc(f.url) + '" alt="">' : '<i class="fas ' + fileIcon(f) + '"></i>') + '</div><div class="name">' + esc(f.name) + '</div></a>'
                 + '<button type="button" class="del js-form-del" data-id="' + f.id + '" title="Hapus">&times;</button></div>';
         }).join(''));
+        // social content comes from the Content Plan: the chip only shows for a job made there
+        // (or an old request that already is "Konten Sosmed")
+        var sosmedAllowed = !!data.content_plan_id || (editing && data.jenis === 'Konten Sosmed');
+        $('#drfJenisChips .cp-chip-opt[data-value="Konten Sosmed"]').toggle(sosmedAllowed);
+        $('#drfSosmedHint').toggle(!sosmedAllowed);
         setJenis(data.jenis || 'Cetak');
         $('#drFormModal').modal('show');
     }

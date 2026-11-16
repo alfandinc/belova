@@ -23,6 +23,7 @@ class DesignRequestController extends Controller
     /** Result files the designer may upload (large files: share a link instead). */
     private const RESULT_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'svg', 'pdf', 'ai', 'psd', 'eps', 'cdr', 'zip', 'rar', 'mp4', 'mov'];
     private const MAX_FILE_KB = 20480;
+    private const SOSMED_FROM_PLAN = 'Desain konten sosmed dibuat dari halaman Content Plan: buat jadwal kontennya lalu pilih "Butuh designer".';
 
     public function index(Request $request)
     {
@@ -308,6 +309,11 @@ class DesignRequestController extends Controller
         ]);
         $designerId = MarketingAccess::isMarketing($user) ? ($data['designer_id'] ?? null) : null;
 
+        // social content is made from the Content Plan, so it is scheduled, approved and reported there
+        if ($data['jenis'] === 'Konten Sosmed' && empty($data['content_plan_id'])) {
+            return response()->json(['message' => self::SOSMED_FROM_PLAN, 'errors' => ['jenis' => [self::SOSMED_FROM_PLAN]]], 422);
+        }
+
         // one designer job per content: a second one would split the flow (the content follows only one)
         if (!empty($data['content_plan_id'])) {
             $existing = DesignRequest::where('content_plan_id', $data['content_plan_id'])
@@ -368,6 +374,11 @@ class DesignRequestController extends Controller
             'remove_files' => 'nullable|array',
             'remove_files.*' => 'integer',
         ]);
+
+        // an old unlinked "Konten Sosmed" request may keep its jenis; nothing else turns into one
+        if ($data['jenis'] === 'Konten Sosmed' && !$dr->content_plan_id && $dr->jenis !== 'Konten Sosmed') {
+            return response()->json(['message' => self::SOSMED_FROM_PLAN, 'errors' => ['jenis' => [self::SOSMED_FROM_PLAN]]], 422);
+        }
 
         DB::transaction(function () use ($dr, $data, $request) {
             $dr->update([

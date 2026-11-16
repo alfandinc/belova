@@ -44,6 +44,7 @@ class DesignRequest extends Model
         'cancel' => 'Membatalkan',
         'reopen' => 'Membuka kembali',
         'comment' => 'Komentar',
+        'linked' => 'Dijadikan Content Plan',
     ];
 
     protected $fillable = [

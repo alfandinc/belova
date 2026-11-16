@@ -199,17 +199,44 @@ class ContentPlanController extends Controller
 
         $data = $request->validate($this->planRules() + self::designerRules() + [
             'content_list_id' => 'nullable|integer|exists:marketing_content_lists,id',
+            'design_request_id' => 'nullable|integer|exists:marketing_design_requests,id',
         ]);
         $contentListId = $data['content_list_id'] ?? null;
+        $designRequestId = $data['design_request_id'] ?? null;
         $designer = $this->pullDesignerChoice($data);
-        unset($data['content_list_id']);
+        unset($data['content_list_id'], $data['design_request_id']);
+        // made from an existing design job: that job is the designer, no second one
+        if ($designRequestId) {
+            $designer = null;
+        }
         $data = $this->normalizePlanData($data);
         // New plans always start the workflow at "Terjadwal"
         $data['status'] = 'Scheduled';
 
         // Scheduling from a content list: check the list first and lock it, so a list that is
         // not approved / already scheduled never produces a (duplicate) plan.
-        $result = DB::transaction(function () use ($data, $contentListId) {
+        $result = DB::transaction(function () use ($data, $contentListId, $designRequestId) {
+            $design = null;
+            if ($designRequestId) {
+                $design = DesignRequest::whereKey($designRequestId)->lockForUpdate()->first();
+                if (!$design || $design->jenis !== 'Konten Sosmed') {
+                    return 'Hanya request desain Konten Sosmed yang bisa dijadikan Content Plan.';
+                }
+                if ($design->content_plan_id) {
+                    return 'Request desain ini sudah terhubung ke Content Plan #' . $design->content_plan_id . '.';
+                }
+                if ($design->status === DesignRequest::STATUS_DIBATALKAN) {
+                    return 'Request desain ini sudah dibatalkan.';
+                }
+                // the plan picks up where the design is: approved design = siap publish
+                $data['status'] = [
+                    DesignRequest::STATUS_DIKERJAKAN => 'Produksi',
+                    DesignRequest::STATUS_REVISI => 'Revisi',
+                    DesignRequest::STATUS_REVIEW => 'Review',
+                    DesignRequest::STATUS_SELESAI => 'Done',
+                ][$design->status] ?? 'Scheduled';
+            }
+
             $contentList = null;
             if ($contentListId) {
                 $contentList = ContentList::whereKey($contentListId)->lockForUpdate()->first();
@@ -222,8 +249,25 @@ class ContentPlanController extends Controller
             }
 
             $plan = ContentPlan::create($data);
-            $plan->logStatus('created', null, 'Scheduled', $contentList ? 'Dari ide konten: ' . $contentList->judul : null);
+            $plan->logStatus('created', null, $plan->status, $contentList ? 'Dari ide konten: ' . $contentList->judul
+                : ($design ? 'Dari Request Desain #' . $design->id . ' (desain: ' . $design->status . ')' : null));
             $brief = null;
+
+            if ($design) {
+                $design->update(['content_plan_id' => $plan->id]);
+                $design->logStatus('linked', null, null, 'Content Plan #' . $plan->id . ': ' . $plan->judul);
+                // the request's brief + reference images become the content brief
+                $images = $design->files()->where('kind', \App\Models\Marketing\DesignRequestFile::KIND_REFERENSI)
+                    ->get()->filter(fn ($f) => str_starts_with((string) $f->mime, 'image/'))->pluck('path')->values()->all();
+                if (trim((string) $design->brief) !== '' || $images) {
+                    $brief = ContentBrief::create([
+                        'content_plan_id' => $plan->id,
+                        'user_id' => Auth::id(),
+                        'isi_konten' => trim((string) $design->brief) !== '' ? nl2br(e(trim($design->brief))) : null,
+                        'visual_references' => $images ?: null,
+                    ]);
+                }
+            }
 
             if ($contentList) {
                 $contentList->update(['scheduled_plan_id' => $plan->id]);
@@ -242,7 +286,7 @@ class ContentPlanController extends Controller
         });
 
         if (is_string($result)) {
-            return response()->json(['message' => $result, 'errors' => ['content_list_id' => [$result]]], 422);
+            return response()->json(['message' => $result, 'errors' => [($designRequestId ? 'design_request_id' : 'content_list_id') => [$result]]], 422);
         }
 
         [$plan, $brief] = $result;
@@ -903,7 +947,27 @@ class ContentPlanController extends Controller
                 ])->values()->all();
         }
 
+        // Request Desain made directly (not from a Content Plan): its title is not on the board, so a
+        // search for it would find nothing; listed so the user sees where it is.
+        $designs = [];
+        if (Schema::hasTable('marketing_design_requests') && !preg_match('/^#?\d+$/', $q)) {
+            $designQuery = DesignRequest::visibleTo(Auth::user())->whereNull('content_plan_id')
+                ->with('designer:id,name');
+            foreach (self::searchWords($q) as $word) {
+                $designQuery->where('judul', 'like', '%' . addcslashes($word, '%_\\') . '%');
+            }
+            $designs = $designQuery->orderByDesc('id')->limit(5)->get()->map(fn (DesignRequest $d) => [
+                'id' => $d->id,
+                'judul' => $d->judul ?? '',
+                'jenis' => $d->jenis,
+                'status' => $d->status,
+                'deadline' => $d->deadline ? $d->deadline->locale('id')->translatedFormat('j M Y') : '',
+                'designer' => $d->designer ? $d->designer->name : '',
+            ])->values()->all();
+        }
+
         return response()->json([
+            'designs' => $designs,
             'data' => $rows->map(fn (ContentPlan $row) => [
                 'id' => $row->id,
                 'judul' => $row->judul ?? '',

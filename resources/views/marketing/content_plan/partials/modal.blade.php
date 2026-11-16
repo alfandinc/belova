@@ -5,6 +5,7 @@
     <div class="modal-content">
       <form id="contentPlanForm" novalidate>
         <input type="hidden" name="content_list_id" value="">
+        <input type="hidden" name="design_request_id" value="">
         <div class="modal-header align-items-center">
           <div class="d-flex align-items-center flex-wrap" style="gap:8px;min-width:0">
             {{-- one section open: back to the summary of the content --}}

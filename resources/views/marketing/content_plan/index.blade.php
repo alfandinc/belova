@@ -1224,6 +1224,16 @@ $(function () {
                     + (it.assigned ? '<span><i class="far fa-user mr-1"></i>' + esc(it.assigned) + '</span>' : '') + '</div></button>';
             }).join('');
         }
+        var designs = (resp && resp.designs) || [];
+        if (designs.length) {
+            out += '<div class="cp-search-head">Request Desain (belum ada di Content Plan)</div>' + designs.map(function (d) {
+                return '<button type="button" class="cp-search-item" data-design="' + d.id + '">'
+                    + '<div class="t"><i class="fas fa-palette mr-1 text-muted"></i>' + highlight(d.judul, q) + '</div>'
+                    + '<div class="m"><span>' + esc(d.jenis) + (d.deadline ? ' · deadline ' + esc(d.deadline) : '') + '</span>'
+                    + W.pill('design', d.status, d.status)
+                    + (d.designer ? '<span><i class="far fa-user mr-1"></i>' + esc(d.designer) + '</span>' : '') + '</div></button>';
+            }).join('');
+        }
         if (!out) {
             out = '<div class="cp-search-empty">Tidak ada konten dengan judul “' + esc(q) + '”'
                 + (brandFilter || onlyMine ? '<br><span class="small">Filter klinik / Tugas saya sedang aktif</span>' : '') + '</div>';
@@ -1277,6 +1287,7 @@ $(function () {
         var $it = $(this);
         $('#cpSearchDrop').hide();
         if ($it.data('routine')) { openRoutine($it.data('routine')); return; }
+        if ($it.data('design')) { window.open(ROUTES.designPage + '?open=' + $it.data('design'), '_blank'); return; }
         var date = String($it.data('date') || '');
         if (date && !moment(date).isSame(weekStart, 'isoWeek')) goToWeek(date);
         openPlan($it.data('id'));
@@ -1482,7 +1493,7 @@ $(function () {
         currentPlan = null;
         $planForm[0].reset();
         $planForm.attr('data-action', 'store').attr('data-id', '');
-        $planForm.find('input[name="content_list_id"]').val('');
+        $planForm.find('input[name="content_list_id"], input[name="design_request_id"]').val('');
         $planModal.find('.cp-select2').val(null).trigger('change.select2');
         fillWho(null);
         $planModal.find('.js-chip-picker').val([]).trigger('change.select2');
@@ -1812,6 +1823,13 @@ $(function () {
             $('#link_referensi').val(src.link_referensi || '');
             if (src.gambar_url) addServerRef(src.gambar_url, null);
         }
+        // "Jadikan Content Plan" from an old Konten Sosmed design request: the plan takes over that job
+        var dsg = opts.design || null;
+        if (dsg) {
+            $('#contentPlanModalLabel').text('Jadikan Content Plan · Request Desain #' + dsg.id);
+            $planForm.find('input[name="design_request_id"]').val(dsg.id);
+            $('#judul').val(String(dsg.judul || '').replace(/^Desain konten\s*-\s*/i, ''));
+        }
         renderLinkInputs($('#platform').val() || [], {});
         setWizard(1);
         $planModal.modal('show');
@@ -1922,7 +1940,7 @@ $(function () {
             if (!$planModal.hasClass('show')) resetPlanModal();
             currentPlan = p;
             $planForm.attr('data-action', 'update').attr('data-id', p.id);
-            $planForm.find('input[name="content_list_id"]').val('');
+            $planForm.find('input[name="content_list_id"], input[name="design_request_id"]').val('');
             $('#contentPlanModalLabel').text('Konten #' + p.id);
             $('#cpModalStatus').html(planPill(p.status));
             fillPlanForm(p);
@@ -3274,6 +3292,17 @@ $(function () {
     if (params.get('tab') === 'ide') $('#idea-tab').tab('show');
     if (params.get('open')) openPlan(params.get('open'));
     if (params.get('routine')) openRoutine(params.get('routine'));
+    if (params.get('from_design') && CAN_MANAGE) {
+        $.getJSON(ROUTES.designPage + '/' + encodeURIComponent(params.get('from_design'))).done(function (d) {
+            if (d.content_plan_id) { openPlan(d.content_plan_id); return; } // already linked: show that content
+            if (d.jenis !== 'Konten Sosmed' || d.status === 'Dibatalkan') {
+                Swal.fire('Tidak bisa', 'Hanya request desain Konten Sosmed yang masih berlaku yang bisa dijadikan Content Plan.', 'info');
+                return;
+            }
+            prepareNewPlan({ design: d });
+            W.toast('Lengkapi jadwal, platform & jenis konten. Status ikut desain (' + d.status + ').');
+        }).fail(function (xhr) { Swal.fire('Gagal', W.errorMessage(xhr, 'Request desain tidak ditemukan.'), 'error'); });
+    }
     if (params.get('ig') && CAN_MANAGE) openIgAccounts(); // "Hubungkan akun" from Analisa Konten
 
     // Live board: refresh every 10 seconds (and right after a notification); skipped while a dialog
