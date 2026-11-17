@@ -104,6 +104,7 @@ class Visitation extends Model
 
     protected $casts = [
         'masuk_ruangan_at' => 'datetime',
+        'mulai_dilayani_at' => 'datetime',
     ];
 
     protected static function booted(): void
@@ -272,6 +273,34 @@ class Visitation extends Model
         static $exists = null;
 
         return $exists ??= \Illuminate\Support\Facades\Schema::hasColumn('erm_visitations', 'masuk_ruangan_at');
+    }
+
+    /** mulai_dilayani_at exists once its migration ran (prod schema may lag behind the code). */
+    public static function tracksMulaiDilayani(): bool
+    {
+        static $exists = null;
+
+        return $exists ??= \Illuminate\Support\Facades\Schema::hasColumn('erm_visitations', 'mulai_dilayani_at');
+    }
+
+    /**
+     * "Mulai dilayani": a Perawat opens the asesmen perawat / CPPT form for the first time on the visit day,
+     * before the asesmen is saved. Recorded once, no extra button. Opening a future (janji) visit does not count.
+     * Plain query so updated_at is not touched.
+     */
+    public function catatMulaiDilayani(): void
+    {
+        $user = \Illuminate\Support\Facades\Auth::user();
+        if (!self::tracksMulaiDilayani() || !empty($this->mulai_dilayani_at) || !empty($this->status_dokumen)
+            || !$user || !$user->hasRole('Perawat')
+            || \Carbon\Carbon::parse($this->tanggal_visitation)->toDateString() !== now()->toDateString()) {
+            return;
+        }
+
+        \Illuminate\Support\Facades\DB::table('erm_visitations')
+            ->where('id', $this->id)
+            ->whereNull('mulai_dilayani_at')
+            ->update(['mulai_dilayani_at' => now()]);
     }
 
     /** spesialisasi_id exists once its migration ran (prod schema may lag behind the code). */

@@ -55,6 +55,7 @@ class CPPTController extends Controller
     public function create($visitationId)
     {
         $visitation = Visitation::with('dokter.spesialisasi')->findOrFail($visitationId);
+        $visitation->catatMulaiDilayani(); // Alur Pelayanan: perawat filling a CPPT instead of the asesmen
 
         $pasienData = PasienHelperController::getDataPasien($visitationId);
         $createKunjunganData = KunjunganHelperController::getCreateKunjungan($visitationId);

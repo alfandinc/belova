@@ -19,6 +19,7 @@ class AsesmenPerawatController extends Controller
     public function create($visitationId)
     {
         $visitation = Visitation::findOrFail($visitationId);
+        $visitation->catatMulaiDilayani(); // Alur Pelayanan: first open by a perawat on the visit day
         $dataperawat = AsesmenPerawat::where('visitation_id', $visitationId)->first();
 
         $pasienData = PasienHelperController::getDataPasien($visitationId);

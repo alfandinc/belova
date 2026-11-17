@@ -41,6 +41,7 @@ class AlurPelayanan
 
     /** Sub-states shown inside a stage: key => [stage, label, meaning] */
     public const SUBS = [
+        'mulai_dilayani' => ['menunggu_perawat', 'mulai dilayani', 'Perawat sudah membuka asesmen, belum disimpan'],
         'tagihan_kosong' => ['menunggu_kasir', 'tagihan kosong', 'Belum ada item tagihan, jadi belum muncul di halaman Billing'],
     ];
 
@@ -75,9 +76,14 @@ class AlurPelayanan
     /** SQL CASE giving the sub-state (SUBS key) of the visit aliased $v, or NULL. */
     public static function subSql(string $v = 'v'): string
     {
-        // The kasir has nothing to process yet / Billing does not list it (e.g. kontrol or produk visit without items)
-        return "(CASE WHEN " . self::stageSql($v) . " = 'menunggu_kasir' AND NOT " . self::hasBillSql($v)
-            . " THEN 'tagihan_kosong' ELSE NULL END)";
+        $stage = self::stageSql($v);
+
+        return "(CASE"
+            . (Visitation::tracksMulaiDilayani()
+                ? " WHEN {$stage} = 'menunggu_perawat' AND {$v}.mulai_dilayani_at IS NOT NULL THEN 'mulai_dilayani'" : '')
+            // The kasir has nothing to process yet / Billing does not list it (e.g. kontrol or produk visit without items)
+            . " WHEN {$stage} = 'menunggu_kasir' AND NOT " . self::hasBillSql($v) . " THEN 'tagihan_kosong'"
+            . " ELSE NULL END)";
     }
 
     /** Visit count per sub-state for the filters (strip sub-lines). */
@@ -332,6 +338,9 @@ class AlurPelayanan
         $steps = [];
         $steps[] = ['label' => 'Terdaftar', 'at' => $fmt($t['daftar'])];
         if ($clinical) {
+            if (Visitation::tracksMulaiDilayani()) {
+                $steps[] = ['label' => 'Mulai dilayani perawat', 'at' => $fmt($t['mulai'])];
+            }
             $steps[] = ['label' => 'Asesmen perawat', 'at' => $fmt($t['perawat'])];
             if (Visitation::tracksMasukRuangan()) {
                 $steps[] = ['label' => 'Masuk ruang dokter', 'at' => $fmt($t['masuk'])];
@@ -387,6 +396,9 @@ class AlurPelayanan
         if (Visitation::tracksMasukRuangan()) {
             $columns[] = 'v.masuk_ruangan_at';
         }
+        if (Visitation::tracksMulaiDilayani()) {
+            $columns[] = 'v.mulai_dilayani_at';
+        }
 
         return $columns;
     }
@@ -439,6 +451,7 @@ class AlurPelayanan
 
             $times = [
                 'daftar' => $r->created_at,
+                'mulai' => $r->mulai_dilayani_at ?? null,
                 'perawat' => $perawat[$id] ?? null,
                 'masuk' => $r->masuk_ruangan_at ?? null,
                 'periksa' => $periksa,
@@ -450,7 +463,7 @@ class AlurPelayanan
             $r->has_lab = $labRows->has($id);
 
             $since = match ($r->tahap) {
-                'menunggu_perawat' => $times['daftar'],
+                'menunggu_perawat' => $times['mulai'] ?? $times['daftar'],
                 'menunggu_dokter' => $times['perawat'] ?? $r->updated_at,
                 'diperiksa_dokter' => $times['masuk'],
                 'tindakan' => $times['periksa'],
@@ -467,8 +480,10 @@ class AlurPelayanan
             $sinceAt = $since ? Carbon::parse($since) : null;
             $r->sejak = $sinceAt ? ($sinceAt->isToday() ? $sinceAt->format('H:i') : $sinceAt->format('d/m H:i')) : null;
             // Waiting minutes only for open stages that started today (an old unpaid visit is not "waiting").
-            // Terdaftar: no timer, the registration time is not the arrival time (booked last night / days before)
-            $r->menit = ($sinceAt && $sinceAt->isToday() && !in_array($r->tahap, ['menunggu_perawat', 'selesai', 'dibatalkan'], true))
+            // Terdaftar: no timer until the perawat starts (registration time is not the arrival time:
+            // booked last night / days before); once started, the timer runs from mulai dilayani
+            $belumDilayani = $r->tahap === 'menunggu_perawat' && empty($times['mulai']);
+            $r->menit = ($sinceAt && $sinceAt->isToday() && !$belumDilayani && !in_array($r->tahap, ['selesai', 'dibatalkan'], true))
                 ? (int) Carbon::parse($since)->diffInMinutes($now)
                 : null;
 
