@@ -300,8 +300,11 @@ class AlurPelayanan
                 'sejak' => $r->sejak,
                 'menit' => $r->menit,
                 'lab_pending' => $r->lab_pending,
+                'daftar_at' => (string) $r->created_at,
             ])
-            ->sortByDesc(fn ($r) => $r['menit'] ?? -1)
+            // Longest waiting first; without a timer (Terdaftar) the earliest registered first
+            ->sortBy(fn ($r) => [-($r['menit'] ?? -1), $r['daftar_at']])
+            ->map(fn ($r) => array_diff_key($r, ['daftar_at' => true]))
             ->values()
             ->all();
     }
@@ -463,8 +466,9 @@ class AlurPelayanan
             $r->lab_pending = (int) ($labPending[$id] ?? 0);
             $sinceAt = $since ? Carbon::parse($since) : null;
             $r->sejak = $sinceAt ? ($sinceAt->isToday() ? $sinceAt->format('H:i') : $sinceAt->format('d/m H:i')) : null;
-            // Waiting minutes only for open stages that started today (an old unpaid visit is not "waiting")
-            $r->menit = ($sinceAt && $sinceAt->isToday() && !in_array($r->tahap, ['selesai', 'dibatalkan'], true))
+            // Waiting minutes only for open stages that started today (an old unpaid visit is not "waiting").
+            // Terdaftar: no timer, the registration time is not the arrival time (booked last night / days before)
+            $r->menit = ($sinceAt && $sinceAt->isToday() && !in_array($r->tahap, ['menunggu_perawat', 'selesai', 'dibatalkan'], true))
                 ? (int) Carbon::parse($since)->diffInMinutes($now)
                 : null;
 
