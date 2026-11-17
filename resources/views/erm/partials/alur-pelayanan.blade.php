@@ -35,7 +35,6 @@
     .alur-step-num { font-size: 22px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
     .alur-step-late { font-size: 11px; font-weight: 700; color: #dc3545; white-space: nowrap; }
     :root.theme-dark .alur-step-late { color: #f87171; }
-    .alur-step-sub { font-size: 11px; font-weight: 600; opacity: .8; white-space: nowrap; }
     .alur-badge-sub { font-weight: 500; opacity: .8; }
     /* Empty stage: faint tint, greyed text, not clickable */
     .alur-step.is-zero, .alur-step.is-zero:hover { --tint: 6%; cursor: default; }
@@ -258,7 +257,6 @@ window.AlurPelayanan = (function ($) {
             + '<span class="alur-step-label">' + esc(st.label) + '</span>'
             + '<span class="alur-step-num">' + n + '</span>'
             + (lateN ? '<span class="alur-step-late">' + lateN + ' lewat ' + LATE_MINUTES + ' mnt</span>' : '')
-            + subs.map(function (s) { return '<span class="alur-step-sub">' + s.n + ' ' + esc(s.label) + '</span>'; }).join('')
             + '</button>';
     }
 
