@@ -15,6 +15,9 @@ use Illuminate\Support\Facades\DB;
  *   menunggu_perawat -> menunggu_dokter -> diperiksa_dokter -> tindakan -> menunggu_farmasi -> menunggu_kasir
  *   -> menunggu_hasil_lab -> selesai
  *
+ * Non-clinical visits (produk, lab, event, ...) skip perawat / dokter and follow the rules from tindakan on.
+ * A visit at the kasir with nothing on the bill yet gets the sub-state "tagihan kosong" (subSql).
+ *
  * tindakan = done at the dokter, has tindakan, not paid yet. There is no live "tindakan finished" signal
  * (SPK is filled after the shift), so it lasts until the kasir transaction and wins over a pending resep.
  *
@@ -25,45 +28,68 @@ class AlurPelayanan
 {
     /** Ordered stages: key => [label, colour, icon, what the stage means] */
     public const STAGES = [
-        'menunggu_perawat' => ['Menunggu Perawat', '#64748b', 'fas fa-user-nurse', 'Sudah terdaftar, asesmen perawat belum diisi'],
-        'sedang_dilayani' => ['Sedang Dilayani', '#475569', 'fas fa-concierge-bell', 'Kunjungan non-klinis yang belum selesai, atau belum ada item tagihan (belum muncul di Billing)'],
+        'menunggu_perawat' => ['Terdaftar', '#64748b', 'fas fa-user-nurse', 'Sudah terdaftar, asesmen perawat belum diisi'],
         'menunggu_dokter' => ['Menunggu Dokter', '#d39e00', 'fas fa-hourglass-half', 'Asesmen perawat selesai, pasien belum masuk ruang dokter'],
         'diperiksa_dokter' => ['Diperiksa Dokter', '#1d63ed', 'fas fa-user-md', 'Pasien di ruang dokter, pemeriksaan belum disimpan'],
         'tindakan' => ['Menjalani Tindakan', '#db2777', 'fas fa-procedures', 'Ada tindakan dan belum dibayar (termasuk yang sudah selesai ditindak dan sedang ke kasir)'],
         'menunggu_farmasi' => ['Menunggu Farmasi', '#6f42c1', 'fas fa-prescription-bottle-alt', 'Resep belum disubmit farmasi'],
-        'menunggu_kasir' => ['Menunggu Kasir', '#e8590c', 'fas fa-cash-register', 'Tagihan lengkap, belum ditransaksikan kasir'],
+        'menunggu_kasir' => ['Menunggu Kasir', '#e8590c', 'fas fa-cash-register', 'Belum ditransaksikan kasir'],
         'menunggu_hasil_lab' => ['Menunggu Hasil Lab', '#0891b2', 'fas fa-flask', 'Sudah dibayar, hasil lab belum keluar'],
         'selesai' => ['Selesai', '#20a374', 'fas fa-check-circle', 'Sudah dibayar, resep dilayani, hasil lab (jika ada) keluar'],
         'dibatalkan' => ['Dibatalkan', '#6c757d', 'fas fa-ban', 'Kunjungan dibatalkan'],
     ];
 
+    /** Sub-states shown inside a stage: key => [stage, label, meaning] */
+    public const SUBS = [
+        'tagihan_kosong' => ['menunggu_kasir', 'tagihan kosong', 'Belum ada item tagihan, jadi belum muncul di halaman Billing'],
+    ];
+
     /** Waiting longer than this (minutes, today) is flagged red. */
     public const LATE_MINUTES = 30;
 
-    /** Stages shown in the strip, in flow order (sedang_dilayani only when there is one). */
-    public const STRIP_STAGES = ['menunggu_perawat', 'sedang_dilayani', 'menunggu_dokter', 'diperiksa_dokter', 'tindakan', 'menunggu_farmasi', 'menunggu_kasir', 'menunggu_hasil_lab', 'selesai'];
+    /** Stages shown in the strip, in flow order. */
+    public const STRIP_STAGES = ['menunggu_perawat', 'menunggu_dokter', 'diperiksa_dokter', 'tindakan', 'menunggu_farmasi', 'menunggu_kasir', 'menunggu_hasil_lab', 'selesai'];
 
     /** SQL CASE giving the stage key of the visit aliased $v. */
     public static function stageSql(string $v = 'v'): string
     {
         $clinical = implode(',', Visitation::CLINICAL_TYPES);
         $masuk = Visitation::tracksMasukRuangan() ? "{$v}.masuk_ruangan_at IS NOT NULL" : '1 = 0';
+        // Still at the perawat / dokter: clinical visit not finished by the dokter
+        $diPoli = "{$v}.status_kunjungan <> 2 AND {$v}.jenis_kunjungan IN ({$clinical})";
 
         return "(CASE"
             . " WHEN {$v}.status_kunjungan = " . Visitation::STATUS_DIBATALKAN . " THEN 'dibatalkan'"
-            . " WHEN {$v}.status_kunjungan <> 2 AND {$v}.jenis_kunjungan NOT IN ({$clinical}) THEN 'sedang_dilayani'"
-            . " WHEN {$v}.status_kunjungan <> 2 AND COALESCE({$v}.status_dokumen, '') = '' THEN 'menunggu_perawat'"
-            . " WHEN {$v}.status_kunjungan <> 2 AND NOT ({$masuk}) THEN 'menunggu_dokter'"
-            . " WHEN {$v}.status_kunjungan <> 2 THEN 'diperiksa_dokter'"
+            . " WHEN {$diPoli} AND COALESCE({$v}.status_dokumen, '') = '' THEN 'menunggu_perawat'"
+            . " WHEN {$diPoli} AND NOT ({$masuk}) THEN 'menunggu_dokter'"
+            . " WHEN {$diPoli} THEN 'diperiksa_dokter'"
             // No live "tindakan done" signal (SPK is filled after the shift): a visit with tindakan stays here until paid
             . " WHEN EXISTS (SELECT 1 FROM erm_riwayat_tindakan ap_rt WHERE ap_rt.visitation_id = {$v}.id)"
             . " AND NOT " . self::transactedSql($v) . " THEN 'tindakan'"
             . " WHEN " . self::hasResepSql($v) . " AND NOT " . self::resepDoneSql($v) . " THEN 'menunggu_farmasi'"
-            // Nothing on the bill yet (e.g. produk visit without items): the kasir has nothing to process / Billing does not list it
-            . " WHEN NOT " . self::transactedSql($v) . " AND NOT " . self::hasBillSql($v) . " THEN 'sedang_dilayani'"
             . " WHEN NOT " . self::transactedSql($v) . " THEN 'menunggu_kasir'"
             . " WHEN " . self::labOpenSql($v) . " THEN 'menunggu_hasil_lab'"
             . " ELSE 'selesai' END)";
+    }
+
+    /** SQL CASE giving the sub-state (SUBS key) of the visit aliased $v, or NULL. */
+    public static function subSql(string $v = 'v'): string
+    {
+        // The kasir has nothing to process yet / Billing does not list it (e.g. kontrol or produk visit without items)
+        return "(CASE WHEN " . self::stageSql($v) . " = 'menunggu_kasir' AND NOT " . self::hasBillSql($v)
+            . " THEN 'tagihan_kosong' ELSE NULL END)";
+    }
+
+    /** Visit count per sub-state for the filters (strip sub-lines). */
+    public static function subCounts(array $filters): array
+    {
+        return self::baseQuery($filters)
+            ->selectRaw(self::subSql() . ' as sub, COUNT(*) as total')
+            ->groupBy('sub')
+            ->pluck('total', 'sub')
+            ->filter(fn ($n, $sub) => $sub !== '' && isset(self::SUBS[$sub]))
+            ->map(fn ($n) => (int) $n)
+            ->all();
     }
 
     /** The visit has a lab request that is neither completed nor cancelled. */
@@ -232,10 +258,12 @@ class AlurPelayanan
             ->whereIn('v.id', $ids)
             ->select(self::visitColumns())
             ->selectRaw(self::stageSql() . ' as tahap')
+            ->selectRaw(self::subSql() . ' as sub')
             ->get();
 
         return self::withTimes($rows)->mapWithKeys(fn ($r) => [(string) $r->id => [
             'tahap' => $r->tahap,
+            'sub' => $r->sub,
             'sejak' => $r->sejak,
             'menit' => $r->menit,
             'lab_pending' => $r->lab_pending,
@@ -254,12 +282,14 @@ class AlurPelayanan
             ->select(self::visitColumns())
             ->addSelect('p.nama as nama_pasien', 'u.name as dokter', 'k.nama as klinik', 'v.no_antrian', 'v.tanggal_visitation')
             ->selectRaw(self::stageSql() . ' as tahap')
+            ->selectRaw(self::subSql() . ' as sub')
             ->limit(300)
             ->get();
 
         return self::withTimes($rows)
             ->map(fn ($r) => [
                 'id' => $r->id,
+                'sub' => $r->sub,
                 'no_rm' => $r->pasien_id,
                 'nama_pasien' => $r->nama_pasien ?? '-',
                 'dokter' => $r->dokter ?? '-',
@@ -285,6 +315,7 @@ class AlurPelayanan
             ->select(self::visitColumns())
             ->addSelect('p.nama as nama_pasien')
             ->selectRaw(self::stageSql() . ' as tahap')
+            ->selectRaw(self::subSql() . ' as sub')
             ->first();
         if (!$row) {
             return null;
@@ -329,6 +360,7 @@ class AlurPelayanan
             'nama_pasien' => $row->nama_pasien ?? '-',
             'no_rm' => $row->pasien_id,
             'tahap' => $row->tahap,
+            'sub' => $row->sub,
             'sejak' => $row->sejak,
             'menit' => $row->menit,
             'lab_pending' => $row->lab_pending,
@@ -397,8 +429,8 @@ class AlurPelayanan
         return $rows->map(function ($r) use ($perawat, $penunjang, $cppt, $resepAt, $bayar, $resepIds, $labRows, $labPending, $now) {
             $id = (string) $r->id;
             $periksa = $penunjang[$id] ?? $cppt[$id] ?? null;
-            if (!$periksa && (int) $r->status_kunjungan === 2) {
-                // Done from the asesmen perawat ("Tindakan saja") or a non-clinical visit
+            if (!$periksa && ((int) $r->status_kunjungan === 2 || !Visitation::isClinicalType($r->jenis_kunjungan))) {
+                // Done from the asesmen perawat ("Tindakan saja"), or a non-clinical visit (no perawat / dokter step)
                 $periksa = $perawat[$id] ?? $r->created_at;
             }
 
@@ -415,7 +447,7 @@ class AlurPelayanan
             $r->has_lab = $labRows->has($id);
 
             $since = match ($r->tahap) {
-                'menunggu_perawat', 'sedang_dilayani' => $times['daftar'],
+                'menunggu_perawat' => $times['daftar'],
                 'menunggu_dokter' => $times['perawat'] ?? $r->updated_at,
                 'diperiksa_dokter' => $times['masuk'],
                 'tindakan' => $times['periksa'],

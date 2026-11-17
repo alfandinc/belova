@@ -24,6 +24,7 @@ class AlurPelayananController extends Controller
         return response()->json([
             'counts' => AlurPelayanan::counts($filters),
             'late' => AlurPelayanan::lateCounts($filters),
+            'sub' => AlurPelayanan::subCounts($filters),
             'rows' => AlurPelayanan::forVisits((array) $request->input('ids', [])),
         ]);
     }

@@ -35,6 +35,8 @@
     .alur-step-num { font-size: 22px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
     .alur-step-late { font-size: 11px; font-weight: 700; color: #dc3545; white-space: nowrap; }
     :root.theme-dark .alur-step-late { color: #f87171; }
+    .alur-step-sub { font-size: 11px; font-weight: 600; opacity: .8; white-space: nowrap; }
+    .alur-badge-sub { font-weight: 500; opacity: .8; }
     /* Empty stage: faint tint, greyed text, not clickable */
     .alur-step.is-zero, .alur-step.is-zero:hover { --tint: 6%; cursor: default; }
     :root.theme-dark .alur-step.is-zero, :root.theme-dark .alur-step.is-zero:hover { --tint: 8%; }
@@ -135,11 +137,16 @@
         $alurStages[$alurKey] = ['label' => $alurStage[0], 'color' => $alurStage[1], 'icon' => $alurStage[2], 'desc' => $alurStage[3]];
     }
     $alurStrip = \App\Services\ERM\AlurPelayanan::STRIP_STAGES;
+    $alurSubs = [];
+    foreach (\App\Services\ERM\AlurPelayanan::SUBS as $alurKey => $alurSub) {
+        $alurSubs[$alurKey] = ['stage' => $alurSub[0], 'label' => $alurSub[1], 'desc' => $alurSub[2]];
+    }
 @endphp
 <script>
 window.AlurPelayanan = (function ($) {
     var STAGES = @json($alurStages);
     var STRIP = @json($alurStrip);
+    var SUBS = @json($alurSubs); // detail inside a stage (kasir "tagihan kosong")
     var URLS = {
         summary: @json(route('erm.alur-pelayanan.summary')),
         list: @json(route('erm.alur-pelayanan.list')),
@@ -170,9 +177,10 @@ window.AlurPelayanan = (function ($) {
     function badgeHtml(info, showLab) {
         var st = STAGES[info.tahap] || { label: info.tahap, color: '#6c757d', icon: 'fas fa-circle', desc: '' };
         var late = info.menit != null && info.menit > LATE_MINUTES;
-        var title = st.desc + (info.sejak ? ' — sejak ' + info.sejak : '') + (info.menit != null ? ' (' + durasi(info.menit) + ')' : '') + '. Klik untuk timeline.';
+        var sub = info.sub && SUBS[info.sub];
+        var title = st.desc + (sub ? ' — ' + sub.desc : '') + (info.sejak ? ' — sejak ' + info.sejak : '') + (info.menit != null ? ' (' + durasi(info.menit) + ')' : '') + '. Klik untuk timeline.';
         return '<span class="alur-badge' + (late ? ' is-late' : '') + '" style="--alur:' + st.color + ';" title="' + esc(title) + '">'
-            + '<span class="alur-badge-name">' + esc(st.label) + '</span>'
+            + '<span class="alur-badge-name">' + esc(st.label) + (sub ? ' <span class="alur-badge-sub">· ' + esc(sub.label) + '</span>' : '') + '</span>'
             + (info.menit != null ? '<span class="alur-menit">' + esc(durasi(info.menit)) + '</span>' : '')
             + '</span>'
             + (showLab !== false && info.lab_pending > 0 && info.tahap !== 'menunggu_hasil_lab' ? '<span class="alur-chip-lab" title="Permintaan lab belum selesai"><i class="fas fa-flask"></i>Lab ' + info.lab_pending + '</span>' : '');
@@ -234,32 +242,38 @@ window.AlurPelayanan = (function ($) {
         $strip.find('.alur-sides').append($sides);
     }
 
-    function stepHtml(key, n, lateN) {
+    function stepHtml(key, n, lateN, subCounts) {
         var st = STAGES[key];
-        var title = st.desc + (n ? ' — klik untuk daftar pasien' : '');
+        var subs = [];
+        $.each(SUBS, function (subKey, sub) {
+            var m = (subCounts || {})[subKey] || 0;
+            if (sub.stage === key && m) subs.push({ n: m, label: sub.label, desc: sub.desc });
+        });
+        var title = st.desc
+            + subs.map(function (s) { return ' — ' + s.n + ' ' + s.label + ': ' + s.desc; }).join('')
+            + (n ? ' — klik untuk daftar pasien' : '');
         var cls = 'alur-step' + (n === 0 ? ' is-zero' : '');
         return '<button type="button" role="listitem" class="' + cls + '"' + (n ? ' data-alur-stage="' + key + '"' : '')
             + ' style="--alur:' + st.color + ';" title="' + esc(title) + '">'
             + '<span class="alur-step-label">' + esc(st.label) + '</span>'
             + '<span class="alur-step-num">' + n + '</span>'
             + (lateN ? '<span class="alur-step-late">' + lateN + ' lewat ' + LATE_MINUTES + ' mnt</span>' : '')
+            + subs.map(function (s) { return '<span class="alur-step-sub">' + s.n + ' ' + esc(s.label) + '</span>'; }).join('')
             + '</button>';
     }
 
-    function renderStrip(counts, late) {
+    function renderStrip(counts, late, subCounts) {
         var $strip = $('[data-alur-strip]');
         if (!$strip.length) return;
         ensureStrip($strip);
         late = late || {};
 
         var aktif = 0;
-        var steps = STRIP
-            .filter(function (key) { return key !== 'sedang_dilayani' || (counts[key] || 0) > 0; })
-            .map(function (key) {
-                var n = counts[key] || 0;
-                if (key !== 'selesai') aktif += n;
-                return stepHtml(key, n, late[key] || 0);
-            });
+        var steps = STRIP.map(function (key) {
+            var n = counts[key] || 0;
+            if (key !== 'selesai') aktif += n;
+            return stepHtml(key, n, late[key] || 0, subCounts);
+        });
         $strip.find('.alur-meta').text(aktif + ' dalam proses · ' + (counts.selesai || 0) + ' selesai');
         $strip.find('.alur-flow').html(steps.join(''));
     }
@@ -283,7 +297,7 @@ window.AlurPelayanan = (function ($) {
             .done(function (res) {
                 $.extend(cache, res.rows || {});
                 fillBadges();
-                renderStrip(res.counts || {}, res.late || {});
+                renderStrip(res.counts || {}, res.late || {}, res.sub || {});
             });
         return xhr;
     }
@@ -319,7 +333,8 @@ window.AlurPelayanan = (function ($) {
                 var cls = r.menit == null ? '' : (r.menit > LATE_MINUTES * 2 ? 'alur-wait-late' : (r.menit > LATE_MINUTES ? 'alur-wait-warn' : ''));
                 html += '<tr class="alur-row" data-alur-timeline="' + esc(r.id) + '" title="Klik untuk timeline">'
                     + '<td>' + esc(r.no_antrian || '-') + '</td>'
-                    + '<td><div class="font-weight-bold">' + esc(r.nama_pasien) + '</div><small class="text-muted">' + esc(r.no_rm) + ' · ' + esc(r.jenis) + '</small>'
+                    + '<td><div class="font-weight-bold">' + esc(r.nama_pasien) + '</div><small class="text-muted">' + esc(r.no_rm) + ' · ' + esc(r.jenis)
+                    + (r.sub && SUBS[r.sub] ? ' · <b>' + esc(SUBS[r.sub].label) + '</b>' : '') + '</small>'
                     + (r.lab_pending > 0 ? '<span class="alur-chip-lab"><i class="fas fa-flask"></i>Lab</span>' : '') + '</td>'
                     + '<td>' + esc(r.dokter) + '<br><small class="text-muted">' + esc(r.klinik) + '</small></td>'
                     + '<td>' + esc(r.sejak || '-') + '</td>'

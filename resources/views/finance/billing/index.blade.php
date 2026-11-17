@@ -473,7 +473,7 @@
             // A page click only changes the offset: tell the server so it can reuse the row counts
             var pageOnly = false;
             // short Alur Pelayanan stage names for the stats cards (selesai left out)
-            var BILLING_TAHAP_SHORT = { sedang_dilayani: 'dilayani', tindakan: 'tindakan', menunggu_farmasi: 'di farmasi', menunggu_kasir: 'di kasir', menunggu_hasil_lab: 'tunggu lab' };
+            var BILLING_TAHAP_SHORT = { tindakan: 'tindakan', menunggu_farmasi: 'di farmasi', menunggu_kasir: 'di kasir', menunggu_hasil_lab: 'tunggu lab' };
             $selector.on('page.dt', function() { pageOnly = true; });
 
             // Stats cards follow the visible tab's latest response (filters + search)
