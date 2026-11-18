@@ -5,7 +5,17 @@ $(document).ready(function(){
     let rjPendingDokterId = null;
 
     // init select2 inside modal
-    $('#modalDaftarKunjunganRawatJalan select.select2:not(#rj_pasien_id)').select2({ width: '100%' });
+    $('#modalDaftarKunjunganRawatJalan select.select2:not(#rj_pasien_id):not(#rj_dokter_id)').select2({ width: '100%' });
+
+    // Dokter: in the open list the optgroup already says the spesialisasi, so a row shows only the name;
+    // the chosen value keeps "Nama — Spesialisasi" (its group is not visible there). Search still matches both.
+    $('#rj_dokter_id').select2({
+        width: '100%',
+        templateResult: function(item) {
+            if (!item.element || item.children) return item.text;
+            return $(item.element).attr('data-nama') || item.text;
+        }
+    });
 
     // pasien select2 ajax
     $('#rj_pasien_id').select2({
@@ -936,6 +946,7 @@ $(document).ready(function(){
                     value: dokter.id + ':' + (s.id || ''),
                     dokter: dokter.id,
                     spesialisasi: s.id || '',
+                    nama: nama,
                     text: nama + (s.nama ? ' — ' + s.nama : '')
                 });
             });
@@ -970,7 +981,7 @@ $(document).ready(function(){
             rjDokterGroups(data).forEach(function(group) {
                 const $group = $('<optgroup>').attr('label', group.label);
                 group.items.forEach(function(item) {
-                    $group.append($('<option>').val(item.value).text(item.text)
+                    $group.append($('<option>').val(item.value).text(item.text).attr('data-nama', item.nama)
                         .attr('data-dokter', item.dokter).attr('data-spesialisasi', item.spesialisasi));
                 });
                 dokterSelect.append($group);
