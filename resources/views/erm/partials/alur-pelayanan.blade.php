@@ -36,6 +36,7 @@
     .alur-step-late { font-size: 11px; font-weight: 700; color: #dc3545; white-space: nowrap; }
     :root.theme-dark .alur-step-late { color: #f87171; }
     .alur-badge-sub { font-weight: 500; opacity: .8; }
+    .alur-list-name { display: flex; align-items: center; gap: 6px; }
     /* Empty stage: faint tint, greyed text, not clickable */
     .alur-step.is-zero, .alur-step.is-zero:hover { --tint: 6%; cursor: default; }
     :root.theme-dark .alur-step.is-zero, :root.theme-dark .alur-step.is-zero:hover { --tint: 8%; }
@@ -331,9 +332,11 @@ window.AlurPelayanan = (function ($) {
                 var cls = r.menit == null ? '' : (r.menit > LATE_MINUTES * 2 ? 'alur-wait-late' : (r.menit > LATE_MINUTES ? 'alur-wait-warn' : ''));
                 html += '<tr class="alur-row" data-alur-timeline="' + esc(r.id) + '" title="Klik untuk timeline">'
                     + '<td>' + esc(r.no_antrian || '-') + '</td>'
-                    + '<td><div class="font-weight-bold">' + esc(r.nama_pasien) + '</div><small class="text-muted">' + esc(r.no_rm) + ' · ' + esc(r.jenis)
-                    + (r.sub && SUBS[r.sub] ? ' · <b>' + esc(SUBS[r.sub].label) + '</b>' : '') + '</small>'
-                    + (r.lab_pending > 0 ? '<span class="alur-chip-lab"><i class="fas fa-flask"></i>Lab</span>' : '') + '</td>'
+                    // Lab: same small icon tile as the tables, beside the name (not inside the text line)
+                    + '<td><div class="alur-list-name"><span class="font-weight-bold">' + esc(r.nama_pasien) + '</span>'
+                    + (r.lab_pending > 0 ? iconHtml('fas fa-flask', 'Permintaan lab belum selesai (' + r.lab_pending + ')', r.lab_pending, 'danger') : '') + '</div>'
+                    + '<small class="text-muted">' + esc(r.no_rm) + ' · ' + esc(r.jenis)
+                    + (r.sub && SUBS[r.sub] ? ' · <b>' + esc(SUBS[r.sub].label) + '</b>' : '') + '</small></td>'
                     + '<td>' + esc(r.dokter) + '<br><small class="text-muted">' + esc(r.klinik) + '</small></td>'
                     + '<td>' + esc(r.sejak || '-') + '</td>'
                     + '<td class="' + cls + '">' + esc(durasi(r.menit) || '-') + '</td></tr>';

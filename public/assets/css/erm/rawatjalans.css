@@ -844,6 +844,23 @@
 :root.theme-dark .rj-isi-chip.rj-isi-ic-warning { color: #fca5a5; background: rgba(248, 113, 113, .2); }
 .rj-isi-chip.rj-isi-ic-warning { cursor: pointer; }
 .rj-isi-chip.rj-isi-ic-warning:hover { background: rgba(220, 53, 69, .24); }
+/* Count inside a Dokumen button (Tindakan 3, E-Lab 7) */
+.rj-btn-count {
+    display: inline-block;
+    min-width: 16px;
+    margin-left: 5px;
+    padding: 0 5px;
+    border-radius: 999px;
+    font-size: 10px;
+    line-height: 16px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    background: rgba(0, 0, 0, .14);
+}
+/* Clickable chips (lab -> popup permintaan lab, surat mondok -> the letter): same tile, button/link reset */
+.rj-isi-chip.rj-isi-click { border: 0; font-family: inherit; text-decoration: none; cursor: pointer; }
+.rj-isi-chip.rj-isi-click:hover { filter: brightness(.92); }
+.rj-isi-chip.rj-isi-click:focus-visible { outline: 2px solid currentColor; outline-offset: 1px; }
 
 /* Status colour of the row, on the patient name only (was the whole row's text) */
 .rj-row-diperiksa .rawatjalan-patient-name-text { color: #d97706; }

@@ -34,7 +34,7 @@
                         <select id="queue-calendar-dokter-filter" class="form-control form-control-sm mr-2">
                             <option value="">Semua Dokter</option>
                             @foreach($dokters as $dokter)
-                                <option value="{{ $dokter->id }}" {{ isset($defaultDokterId) && $defaultDokterId == $dokter->id ? 'selected' : '' }}>{{ $dokter->user->name }} - {{ $dokter->spesialisasi->nama }}</option>
+                                <option value="{{ $dokter->id }}" data-kliniks="{{ implode(',', $dokter->klinik_ids ?? []) }}" {{ isset($defaultDokterId) && $defaultDokterId == $dokter->id ? 'selected' : '' }}>{{ $dokter->user->name ?? '-' }} - {{ $dokter->spesialisasi->nama ?? '-' }}</option>
                             @endforeach
                         </select>
                         <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-refresh-queue-calendar">
@@ -116,7 +116,7 @@
                     <select id="filter_dokter" class="form-control select2">
                         <option value="">Semua Dokter</option>
                         @foreach($dokters as $dokter)
-                            <option value="{{ $dokter->id }}" {{ isset($defaultDokterId) && $defaultDokterId == $dokter->id ? 'selected' : '' }}>{{ $dokter->user->name }} - {{ $dokter->spesialisasi->nama }}</option>
+                            <option value="{{ $dokter->id }}" data-kliniks="{{ implode(',', $dokter->klinik_ids ?? []) }}" {{ isset($defaultDokterId) && $defaultDokterId == $dokter->id ? 'selected' : '' }}>{{ $dokter->user->name ?? '-' }} - {{ $dokter->spesialisasi->nama ?? '-' }}</option>
                         @endforeach
                     </select>
                 </div>

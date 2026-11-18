@@ -18,6 +18,14 @@ use Illuminate\Validation\Rule;
 class VisitationController extends Controller
 {
 
+    /** 422 response when the klinik does not provide this jenis kunjungan (Admin > Klinik Setting > tab Layanan). */
+    private function layananError($klinikId, int $jenis)
+    {
+        $message = \App\Models\ERM\KlinikLayanan::errorFor($klinikId, $jenis);
+
+        return $message ? response()->json(['success' => false, 'message' => $message], 422) : null;
+    }
+
     public function create()
     {
         $pasiens = Pasien::all();
@@ -42,6 +50,9 @@ class VisitationController extends Controller
         // - clinical visits (Konsultasi, Slimming, Vaksin, MCU) => only ONE visitation of that type per pasien per tanggal per dokter
         // - jenis_kunjungan = 2/3 (Produk/Lab) => allow multiple
         $jenis = (int) ($request->jenis_kunjungan ?? 1);
+        if ($layananError = $this->layananError($request->klinik_id, $jenis)) {
+            return $layananError;
+        }
         if (Visitation::isClinicalType($jenis)) {
             $dokterId = $request->filled('dokter_id') ? $request->dokter_id : null;
             $exists = Visitation::where('pasien_id', $request->pasien_id)
@@ -115,6 +126,11 @@ class VisitationController extends Controller
             'jenis_kunjungan' => ['nullable', Rule::in([Visitation::TYPE_PRODUK, Visitation::TYPE_RESELLER])],
         ] + Pasien::referralInputRules(false));
 
+        $jenis = (int) ($request->jenis_kunjungan ?: Visitation::TYPE_PRODUK);
+        if ($layananError = $this->layananError($request->klinik_id, $jenis)) {
+            return $layananError;
+        }
+
         // Buat ID custom
         $customId = now()->format('YmdHis') . str_pad(mt_rand(1, 9999999), 7, '0', STR_PAD_LEFT);
         $dokterId = $request->filled('dokter_id') ? $request->dokter_id : null;
@@ -128,7 +144,7 @@ class VisitationController extends Controller
             'metode_bayar_id' => $request->metode_bayar_id,
             'klinik_id' => $request->klinik_id, // Add this line to store klinik_id
             'status_kunjungan' => 2,
-            'jenis_kunjungan' => (int) ($request->jenis_kunjungan ?: Visitation::TYPE_PRODUK),
+            'jenis_kunjungan' => $jenis,
             'user_id' => Auth::id(), // Menyimpan ID user yang login
         ] + $this->requestedReferral($request));
 
@@ -156,6 +172,10 @@ class VisitationController extends Controller
             'metode_bayar_id' => 'required',
             'klinik_id' => 'required', // Add validation for klinik_id
         ] + Pasien::referralInputRules(false));
+
+        if ($layananError = $this->layananError($request->klinik_id, Visitation::TYPE_LAB)) {
+            return $layananError;
+        }
 
         // Buat ID custom
         $customId = now()->format('YmdHis') . str_pad(mt_rand(1, 9999999), 7, '0', STR_PAD_LEFT);
@@ -209,6 +229,10 @@ class VisitationController extends Controller
                 Rule::in(Pasien::marketplaceReferralOptions()),
             ],
         ]);
+
+        if ($layananError = $this->layananError($validated['klinik_id'], Visitation::TYPE_MARKETPLACE)) {
+            return $layananError;
+        }
 
         $forceCreateDuplicate = (bool) ($validated['force_create_duplicate'] ?? false);
 
@@ -299,11 +323,13 @@ class VisitationController extends Controller
 
         // Dokter aktif only; ?include= keeps the dokter already chosen on a kunjungan being edited
         $includeId = (int) request('include');
+        // The klinik mapping (erm_dokter_kliniks) decides; the old single klinik_id only counts for a dokter
+        // without any mapping, so an outdated klinik_id no longer shows the dokter in another klinik.
         $dokters = Dokter::where(function ($q) use ($klinikId) {
-                $q->where('klinik_id', $klinikId)
-                    ->orWhereHas('kliniks', function ($query) use ($klinikId) {
+                $q->whereHas('kliniks', function ($query) use ($klinikId) {
                         $query->where('erm_klinik.id', $klinikId);
-                    });
+                    })
+                    ->orWhere(fn ($legacy) => $legacy->where('klinik_id', $klinikId)->whereDoesntHave('kliniks'));
             })
             ->where(fn ($q) => $q->where('is_active', true)->when($includeId, fn ($q) => $q->orWhere('erm_dokters.id', $includeId)))
             ->with(['spesialisasi', 'user'])

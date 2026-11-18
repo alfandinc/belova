@@ -1455,6 +1455,22 @@ var isDokter = {!! json_encode(!empty($isDokter)) !!};
 
     var autoRefreshTimer = setInterval(autoRefresh, autoRefreshIntervalMs);
 
+    // Dokter filter follows the Klinik filter (dokter klinik mapping). Bound before the reload handler below,
+    // so a dokter that is not in the chosen klinik is cleared before the table reloads.
+    var $filterDokter = $('#filter_dokter');
+    var filterDokterAll = $filterDokter.find('option').clone();
+    function filterDokterByKlinik() {
+        var klinikId = String($('#filter_klinik').val() || '');
+        var current = String($filterDokter.val() || '');
+        $filterDokter.empty().append(filterDokterAll.filter(function () {
+            var kliniks = ',' + String($(this).attr('data-kliniks') || '') + ',';
+            return !this.value || !klinikId || kliniks.indexOf(',' + klinikId + ',') !== -1;
+        }).clone());
+        $filterDokter.val(current && $filterDokter.find('option[value="' + current + '"]').length ? current : '').trigger('change.select2');
+    }
+    $('#filter_klinik').on('change', filterDokterByKlinik);
+    filterDokterByKlinik();
+
     $('#filter_dokter, #filter_klinik, #filter_start_date, #filter_end_date').on('change', function () {
         table.ajax.reload();
         updateStats();

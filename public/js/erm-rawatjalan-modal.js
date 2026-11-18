@@ -324,6 +324,11 @@ $(document).ready(function(){
         const shouldShowMarketplacePatientSection = newMarketplacePatient && !hasFixedPasien;
 
         $('#rj_marketplace_patient_mode_group').toggle(shouldShowPatientModeGroup);
+        // Toggle buttons mirror the hidden select (also when it is set from code)
+        $('.rj-mp-mode-btn').each(function() {
+            const on = $(this).data('value') === marketplacePatientMode();
+            $(this).toggleClass('active', on).attr('aria-checked', on ? 'true' : 'false');
+        });
         $('#rj_marketplace_referral_group').toggle(marketplaceMode);
         $('#rj_marketplace_patient_section').toggle(shouldShowMarketplacePatientSection);
         $('#rj_marketplace_pasien_hint').toggleClass('d-none', !marketplaceMode || hasFixedPasien);
@@ -333,11 +338,42 @@ $(document).ready(function(){
         $('#rj_pasien_id').prop('disabled', hasFixedPasien);
         $('#rj_force_create_duplicate').val('0');
 
-        $('#rj_marketplace_nama, #rj_marketplace_gender, #rj_marketplace_alamat, #rj_marketplace_no_hp')
+        // Visible inputs use the browser's required check; jenis kelamin + marketplace are hidden selects behind
+        // toggle buttons (a hidden required field would silently block the submit), so the submit checks them.
+        $('#rj_marketplace_nama, #rj_marketplace_alamat, #rj_marketplace_no_hp')
             .prop('required', shouldShowMarketplacePatientSection);
-        $('#rj_marketplace_referral_detail').prop('required', shouldShowMarketplacePatientSection);
         // Shares the referral_detail name with the visit referral fields; only submit it in marketplace mode.
         $('#rj_marketplace_referral_detail').prop('disabled', !marketplaceMode);
+        $('#rj_marketplace_referral_label').text(shouldShowMarketplacePatientSection ? 'Marketplace' : 'Marketplace (opsional)');
+        $('#rj_marketplace_referral_hint').toggle(!shouldShowMarketplacePatientSection);
+        // Marketplace visits rarely have a dokter (only when one recommended the purchase)
+        $('label[for="rj_dokter_id"]').html(marketplaceMode ? 'Dokter <span class="rj-label-optional">(opsional, jika direkomendasikan dokter)</span>' : 'Dokter');
+        rjSyncSelectToggles();
+    }
+
+    /** Toggle button groups (.rj-select-toggle[data-select]) mirror a hidden select: one click instead of two. */
+    function rjSyncSelectToggles() {
+        $('.rj-select-toggle').each(function() {
+            const value = String($($(this).data('select')).val() || '');
+            $(this).find('[data-value]').each(function() {
+                const on = String($(this).data('value')) === value;
+                $(this).toggleClass('active', on).attr('aria-checked', on ? 'true' : 'false');
+            });
+        });
+    }
+
+    $(document).on('click', '.rj-select-toggle [data-value]', function() {
+        const $select = $($(this).closest('.rj-select-toggle').data('select'));
+        $select.val(String($(this).data('value'))).trigger('change');
+        rjSyncSelectToggles();
+    });
+
+    /** Marketplace pasien baru: the toggle fields the browser cannot check (null = ok). */
+    function validateRjMarketplaceNewPatient() {
+        if (!isMarketplaceNewPatient() || (rjFixedPasienContext && rjFixedPasienContext.id)) return null;
+        if (!$('#rj_marketplace_gender').val()) return 'Jenis kelamin pasien baru wajib dipilih.';
+        if (!$('#rj_marketplace_referral_detail').val()) return 'Marketplace pasien baru wajib dipilih.';
+        return null;
     }
 
     function setFixedPasienContext(pasienId, pasienNama) {
@@ -507,7 +543,7 @@ $(document).ready(function(){
 
         $.get(window.ErmRawatJalanConfig.routes["erm.rawatjalans.queueCalendar"], {
             month: selectedMonth,
-            dokter_id: $('#rj_dokter_id').val() || '',
+            dokter_id: rjDokterId(),
             klinik_id: $('#rj_klinik_id').val() || ''
         }).done(function(response) {
             renderRjCalendarPreview(response || {}, selectedDate);
@@ -657,8 +693,14 @@ $(document).ready(function(){
         mcu: { jenis: '9', label: 'MCU' }
     };
 
-    function applyMode(mode){
+    /**
+     * Switch the layanan (jenis kunjungan). keepInputs = switched from a layanan chip / klinik fallback while the
+     * form is being filled: keep the chosen cara bayar and referral (only reload the referral when entering or
+     * leaving Marketplace, which has its own referral). Otherwise (opening / closing the modal) reset them.
+     */
+    function applyMode(mode, keepInputs){
         mode = (mode || 'konsultasi').toString();
+        const wasMarketplace = isMarketplaceMode();
         $('#rj_mode').val(mode);
 
         if (mode === 'produk') {
@@ -712,8 +754,80 @@ $(document).ready(function(){
         }
 
         syncMarketplaceState();
-        loadRjReferralContext();
-        setRjMetodeBayarGroup('umum');
+        if (!keepInputs || wasMarketplace !== isMarketplaceMode()) {
+            loadRjReferralContext();
+        }
+        if (!keepInputs) {
+            setRjMetodeBayarGroup('umum');
+        }
+        rjSyncChips();
+        // Back to Konsultasi with a dokter already chosen: the queue number must be filled again
+        if (mode === 'konsultasi') {
+            cekAntrianRJ();
+        }
+    }
+
+    // ---- Klinik + Layanan chips (top of the modal) ----
+    // Layanan chips follow the mapping in Admin > Klinik Setting > tab Layanan; the server rejects the rest too.
+    function rjLayananOff(klinikId, jenis) {
+        const nonaktif = (window.ErmRawatJalanConfig && window.ErmRawatJalanConfig.layananNonaktif) || {};
+        return !!klinikId && (nonaktif[klinikId] || []).map(Number).indexOf(Number(jenis)) !== -1;
+    }
+
+    function rjSyncChips() {
+        const klinikId = $('#rj_klinik_id').val() || '';
+        const mode = $('#rj_mode').val() || 'konsultasi';
+
+        $('#rj_klinik_chips .rj-klinik-chip').each(function() {
+            const on = String($(this).data('klinik')) === String(klinikId);
+            $(this).toggleClass('active', on).attr('aria-checked', on ? 'true' : 'false');
+        });
+        $('#rj_layanan_group').toggle(!!klinikId); // layanan depend on the klinik: shown once one is chosen
+        $('#rj_layanan_chips .rj-layanan-chip').each(function() {
+            const $chip = $(this);
+            const on = $chip.data('mode') === mode;
+            $chip.toggleClass('d-none', rjLayananOff(klinikId, $chip.data('jenis')))
+                .toggleClass('active', on).attr('aria-checked', on ? 'true' : 'false');
+        });
+    }
+
+    /** force = reload the dokter list even when the klinik is unchanged (a pre-filled dokter must be applied). */
+    function rjSelectKlinik(klinikId, force) {
+        if (force || String($('#rj_klinik_id').val() || '') !== String(klinikId)) {
+            $('#rj_klinik_id').val(String(klinikId)).trigger('change');
+        }
+        // The chosen layanan is not offered here: fall back to Konsultasi (or the first one offered) and say so
+        const $current = $('#rj_layanan_chips .rj-layanan-chip[data-mode="' + ($('#rj_mode').val() || 'konsultasi') + '"]');
+        const $hint = $('#rj_layanan_hint').addClass('d-none').text('');
+        if ($current.length && rjLayananOff(klinikId, $current.data('jenis'))) {
+            const $fallback = $('#rj_layanan_chips .rj-layanan-chip').filter(function() {
+                return !rjLayananOff(klinikId, $(this).data('jenis'));
+            });
+            const $pick = $fallback.filter('[data-mode="konsultasi"]').first().length ? $fallback.filter('[data-mode="konsultasi"]').first() : $fallback.first();
+            $hint.removeClass('d-none').text('Layanan ' + $.trim($current.text()) + ' tidak tersedia di klinik ini'
+                + ($pick.length ? ', diganti ke ' + $.trim($pick.text()) + '.' : '.'));
+            if ($pick.length) {
+                applyMode($pick.data('mode'), true);
+                return;
+            }
+        }
+        rjSyncChips();
+    }
+
+    $(document).on('click', '#rj_klinik_chips .rj-klinik-chip', function() {
+        rjSelectKlinik($(this).data('klinik'));
+    });
+
+    $(document).on('click', '#rj_layanan_chips .rj-layanan-chip', function() {
+        const mode = $(this).data('mode');
+        $('#rj_layanan_hint').addClass('d-none').text('');
+        if (mode !== $('#rj_mode').val()) applyMode(mode, true);
+    });
+
+    /** Klinik to start with: the Rawat Jalan / Billing klinik filter when it is set to one klinik. */
+    function rjDefaultKlinikId() {
+        const filter = $('#filter_klinik').val();
+        return filter && $('#rj_klinik_chips .rj-klinik-chip[data-klinik="' + filter + '"]').length ? String(filter) : '';
     }
 
     function todayYmd() {
@@ -734,10 +848,17 @@ $(document).ready(function(){
         setFixedPasienContext(opts.pasienId || '', opts.pasienNama || '');
         $('#rj_tanggal_visitation').val(todayYmd());
 
-        // Pre-fill from a current visit (e.g. ERM sidebar "Reservasi Kunjungan").
-        if (opts.klinikId && $('#rj_klinik_id option[value="' + opts.klinikId + '"]').length) {
+        // Klinik: given by the caller (e.g. ERM sidebar "Reservasi Kunjungan"), else the page's klinik filter,
+        // else none: staff often serve two kliniks, so it is picked with a chip instead of guessed.
+        $('#rj_layanan_hint').addClass('d-none').text('');
+        const klinikId = (opts.klinikId && $('#rj_klinik_id option[value="' + opts.klinikId + '"]').length)
+            ? String(opts.klinikId) : rjDefaultKlinikId();
+        if (klinikId) {
             rjPendingDokterId = opts.dokterId ? String(opts.dokterId) : null;
-            $('#rj_klinik_id').val(String(opts.klinikId)).trigger('change');
+            rjSelectKlinik(klinikId, true);
+        } else {
+            $('#rj_klinik_id').val('').trigger('change');
+            rjSyncChips();
         }
 
         const metode = RJ_METODE_BAYAR.find(function(m) { return String(m.id) === String(opts.metodeBayarId || ''); });
@@ -764,8 +885,10 @@ $(document).ready(function(){
         });
     });
 
+    let rjAntrianSeq = 0;
     function cekAntrianRJ(){
-        let dokterId = $('#rj_dokter_id').val();
+        const seq = ++rjAntrianSeq; // a slower earlier answer (other dokter / date) must not win
+        let dokterId = rjDokterId();
         let tanggal = $('#rj_tanggal_visitation').val();
         if (!dokterId || !tanggal) {
             $('#rj_no_antrian').val('');
@@ -774,37 +897,67 @@ $(document).ready(function(){
         if ($('#rj_mode').val() !== 'konsultasi') return;
 
         $.get(window.ErmRawatJalanConfig.routes["erm.visitations.cekAntrian"], { dokter_id: dokterId, tanggal: tanggal }, function(res){
-            $('#rj_no_antrian').val(res.no_antrian || '');
+            if (seq === rjAntrianSeq) $('#rj_no_antrian').val(res.no_antrian || '');
         }).fail(function(){
-            $('#rj_no_antrian').val('');
+            if (seq === rjAntrianSeq) $('#rj_no_antrian').val('');
         });
     }
 
-    // dokter id => spesialisasi [{id, nama}] in the selected klinik
-    let rjDokterSpesialisasis = {};
+    // The Dokter select holds one option per dokter × spesialisasi ("dokterId:spesialisasiId");
+    // the chosen pair goes to the hidden dokter_id / spesialisasi_id fields.
+    function rjDokterId() {
+        return String($('#rj_dokter_id option:selected').data('dokter') || '');
+    }
 
-    // Spesialisasi picker: shown only when the dokter holds several in this klinik
     function rjRenderSpesialisasi() {
-        const options = rjDokterSpesialisasis[$('#rj_dokter_id').val()] || [];
-        const $select = $('#rj_spesialisasi_id').empty();
-        options.forEach(function(s) {
-            $select.append($('<option>').val(s.id).text(s.nama));
-        });
-        $select.prop('disabled', options.length < 2);
-        $('#rj_spesialisasi_group').toggle(options.length > 1);
+        const $opt = $('#rj_dokter_id option:selected');
+        $('#rj_dokter_value').val($opt.data('dokter') || '');
+        $('#rj_spesialisasi_id').val($opt.data('spesialisasi') || '');
     }
 
-    // klinik => load doctors
+    // Group order: the everyday ones first, then the rest A-Z, dokter without spesialisasi last
+    const RJ_SPESIALISASI_FIRST = ['umum', 'estetika'];
+    function rjGroupRank(nama) {
+        const i = RJ_SPESIALISASI_FIRST.indexOf(String(nama || '').toLowerCase());
+        return i === -1 ? (nama ? RJ_SPESIALISASI_FIRST.length : 99) : i;
+    }
+
+    /** Options grouped by spesialisasi: [{label, items: [{value, dokter, spesialisasi, text}]}] */
+    function rjDokterGroups(dokters) {
+        const groups = {};
+        (dokters || []).forEach(function(dokter) {
+            const nama = (dokter.user && dokter.user.name) ? dokter.user.name : 'Unknown Doctor';
+            let spesialisasis = Array.isArray(dokter.spesialisasis) ? dokter.spesialisasis : [];
+            if (!spesialisasis.length && dokter.spesialisasi) spesialisasis = [dokter.spesialisasi];
+            if (!spesialisasis.length) spesialisasis = [{ id: '', nama: '' }];
+            spesialisasis.forEach(function(s) {
+                const label = s.nama || 'Tanpa Spesialisasi';
+                (groups[label] = groups[label] || { label: label, rank: rjGroupRank(s.nama), items: [] }).items.push({
+                    value: dokter.id + ':' + (s.id || ''),
+                    dokter: dokter.id,
+                    spesialisasi: s.id || '',
+                    text: nama + (s.nama ? ' — ' + s.nama : '')
+                });
+            });
+        });
+
+        return Object.keys(groups).map(function(k) { return groups[k]; }).sort(function(a, b) {
+            return a.rank - b.rank || a.label.localeCompare(b.label);
+        });
+    }
+
+    // klinik => load doctors (only the answer for the latest klinik click is used)
+    let rjDokterLoadSeq = 0;
     $('#rj_klinik_id').on('change', function(){
         let klinikId = $(this).val();
         let dokterSelect = $('#rj_dokter_id');
+        const seq = ++rjDokterLoadSeq;
 
-        dokterSelect.empty().append('<option value="">Loading...</option>').prop('disabled', true);
-        rjDokterSpesialisasis = {};
+        dokterSelect.empty().append('<option value="">Loading...</option>').prop('disabled', true).trigger('change.select2');
         rjRenderSpesialisasi();
+        $('#rj_no_antrian').val('');
         if (!klinikId) {
             dokterSelect.empty().append('<option value="">Tanpa Dokter</option>').prop('disabled', true).trigger('change.select2');
-            $('#rj_no_antrian').val('');
             return;
         }
 
@@ -812,27 +965,30 @@ $(document).ready(function(){
             url: `/get-dokters/${klinikId}`,
             type: 'GET'
         }).done(function(data){
+            if (seq !== rjDokterLoadSeq) return;
             dokterSelect.empty().append('<option value="">Tanpa Dokter</option>');
-            if (data && data.length) {
-                $.each(data, function(_, dokter){
-                    let dokterName = (dokter.user && dokter.user.name) ? dokter.user.name : 'Unknown Doctor';
-                    let spesialisasis = Array.isArray(dokter.spesialisasis) ? dokter.spesialisasis : [];
-                    rjDokterSpesialisasis[dokter.id] = spesialisasis;
-                    let spesialisNama = spesialisasis.length
-                        ? spesialisasis.map(function(s) { return s.nama; }).join(' / ')
-                        : ((dokter.spesialisasi && dokter.spesialisasi.nama) || '');
-                    let spesialis = spesialisNama ? ` (${spesialisNama})` : '';
-                    dokterSelect.append(`<option value="${dokter.id}">${dokterName}${spesialis}</option>`);
+            rjDokterGroups(data).forEach(function(group) {
+                const $group = $('<optgroup>').attr('label', group.label);
+                group.items.forEach(function(item) {
+                    $group.append($('<option>').val(item.value).text(item.text)
+                        .attr('data-dokter', item.dokter).attr('data-spesialisasi', item.spesialisasi));
                 });
-            }
+                dokterSelect.append($group);
+            });
             dokterSelect.prop('disabled', false).trigger('change.select2');
+            rjRenderSpesialisasi();
 
-            // Pre-filled dokter (openRjDaftarKunjungan): select it once the klinik's list is in.
-            if (rjPendingDokterId && dokterSelect.find('option[value="' + rjPendingDokterId + '"]').length) {
-                dokterSelect.val(rjPendingDokterId).trigger('change');
+            // Pre-filled dokter (openRjDaftarKunjungan): the first of its options once the klinik's list is in
+            const $pending = rjPendingDokterId
+                ? dokterSelect.find('option').filter(function() { return String($(this).data('dokter')) === rjPendingDokterId; }).first()
+                : $();
+            if ($pending.length) {
+                dokterSelect.val($pending.val()).trigger('change');
             }
             rjPendingDokterId = null;
-        }).fail(function(){
+        }).fail(function(xhr, status){
+            if (seq !== rjDokterLoadSeq || status === 'abort') return;
+            rjPendingDokterId = null;
             dokterSelect.empty().append('<option value="">Tanpa Dokter</option>').prop('disabled', false).trigger('change.select2');
             Swal.fire({ icon: 'error', title: 'Error', text: 'Gagal mengambil data dokter' });
         });
@@ -852,6 +1008,13 @@ $(document).ready(function(){
 
     $('#btn-rj-cek-kalender').on('click', function() {
         toggleRjCalendarPreview();
+    });
+
+    $(document).on('click', '.rj-mp-mode-btn', function() {
+        const value = $(this).data('value');
+        if (value !== marketplacePatientMode()) {
+            $('#rj_marketplace_patient_mode').val(value).trigger('change');
+        }
     });
 
     $('#rj_marketplace_patient_mode').on('change', function() {
@@ -876,6 +1039,11 @@ $(document).ready(function(){
     $('#form-daftar-kunjungan-rawatjalan').on('submit', function(e){
         e.preventDefault();
 
+        if (!$('#rj_klinik_id').val()) {
+            Swal.fire({ icon: 'warning', title: 'Klinik', text: 'Pilih klinik tujuan kunjungan terlebih dahulu.', confirmButtonText: 'OK' });
+            return;
+        }
+
         if (!$('#rj_metode_bayar_id').val()) {
             const metodeMessage = rjMetodeBayarGroup() === 'asuransi' ? 'Penjamin asuransi wajib dipilih.' : 'Metode bayar wajib dipilih.';
             Swal.fire({ icon: 'warning', title: 'Cara Bayar', text: metodeMessage, confirmButtonText: 'OK' });
@@ -890,6 +1058,12 @@ $(document).ready(function(){
 
         if (!isMarketplaceMode() && currentRjPasienId() && !rjReferralContext) {
             Swal.fire({ icon: 'info', title: 'Mohon tunggu', text: 'Referral pasien masih dimuat.', confirmButtonText: 'OK' });
+            return;
+        }
+
+        const marketplaceError = validateRjMarketplaceNewPatient();
+        if (marketplaceError) {
+            Swal.fire({ icon: 'warning', title: 'Pasien Baru Marketplace', text: marketplaceError, confirmButtonText: 'OK' });
             return;
         }
 

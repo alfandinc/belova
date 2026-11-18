@@ -26,6 +26,7 @@
                             <th>Nama Klinik</th>
                             <th style="width:100px">Cut Off</th>
                             <th style="width:140px">Warna</th>
+                            <th style="width:200px">Layanan</th>
                             <th style="width:200px">SatuSehat</th>
                             <th style="width:200px">Action</th>
                         </tr>
@@ -141,6 +142,7 @@
 
                     <ul class="nav nav-tabs mb-3" role="tablist">
                         <li class="nav-item"><a class="nav-link active" data-toggle="tab" href="#tabUmum" role="tab">Umum</a></li>
+                        <li class="nav-item"><a class="nav-link" data-toggle="tab" href="#tabLayanan" role="tab">Layanan</a></li>
                         <li class="nav-item"><a class="nav-link" data-toggle="tab" href="#tabInvoice" role="tab">Invoice</a></li>
                         <li class="nav-item"><a class="nav-link" data-toggle="tab" href="#tabSatusehat" role="tab">SatuSehat <span id="ssTabBadge"></span></a></li>
                     </ul>
@@ -178,6 +180,28 @@
                                 </div>
                                 <input type="file" class="form-control-file" id="klinikLogo" name="logo" accept="image/png,image/jpeg,image/webp">
                                 <small class="text-muted">Format JPG, PNG, atau WEBP. Maksimal 2 MB.</small>
+                            </div>
+                        </div>
+
+                        {{-- Jenis kunjungan this klinik provides (erm_klinik_layanan); unchecked = cannot be registered here --}}
+                        <div class="tab-pane fade" id="tabLayanan" role="tabpanel">
+                            <input type="hidden" name="layanan_dikirim" value="1">
+                            <div class="alert alert-secondary py-2 small mb-3">
+                                Centang layanan (jenis kunjungan) yang tersedia di klinik ini. Layanan yang tidak dicentang
+                                tidak bisa dipilih saat mendaftarkan kunjungan ke klinik ini. Kunjungan yang sudah ada tidak berubah.
+                            </div>
+                            @if (!\App\Models\ERM\KlinikLayanan::tracked())
+                                <div class="alert alert-warning py-2 small mb-3">Tabel layanan belum ada (migration belum dijalankan): semua layanan dianggap tersedia dan pilihan di sini belum disimpan.</div>
+                            @endif
+                            <div class="row">
+                                @foreach (\App\Models\ERM\KlinikLayanan::forKlinik(null) as $layanan)
+                                    <div class="col-md-6">
+                                        <div class="custom-control custom-checkbox mb-2">
+                                            <input type="checkbox" class="custom-control-input klinik-layanan" id="klinikLayanan{{ $layanan['jenis'] }}" name="layanan[]" value="{{ $layanan['jenis'] }}" checked>
+                                            <label class="custom-control-label" for="klinikLayanan{{ $layanan['jenis'] }}">{{ $layanan['label'] }}</label>
+                                        </div>
+                                    </div>
+                                @endforeach
                             </div>
                         </div>
 
@@ -349,6 +373,7 @@ $(document).ready(function() {
             { data: 'nama', name: 'nama' },
             { data: 'report_cutoff_time', name: 'report_cutoff_time', searchable: false },
             { data: 'color_html', name: 'color', orderable: false, searchable: false },
+            { data: 'layanan_html', name: 'layanan', orderable: false, searchable: false },
             { data: 'satusehat_html', name: 'satusehat', orderable: false, searchable: false },
             { data: 'actions', name: 'actions', orderable: false, searchable: false }
         ]
@@ -405,6 +430,7 @@ $(document).ready(function() {
         $('#ssUrls').collapse('hide');
         $('#locAddress').collapse('hide');
         $('#klinikModal .nav-tabs a:first').tab('show');
+        $('.klinik-layanan').prop('checked', true); // new klinik: every layanan
         setSatusehat(null);
         setLocation(null);
     }
@@ -426,6 +452,9 @@ $(document).ready(function() {
                 $('#klinikLogoPreview').attr('src', data.logo_url);
                 $('#klinikLogoPreviewWrap').show();
             }
+            $.each(data.layanan || [], function(_, l) {
+                $('#klinikLayanan' + l.jenis).prop('checked', !!l.aktif);
+            });
             setSatusehat(data.satusehat);
             setLocation(data.location);
             if (tab) $('#klinikModal .nav-tabs a[href="' + tab + '"]').tab('show');

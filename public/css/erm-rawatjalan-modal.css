@@ -314,3 +314,279 @@
             min-height: 96px;
         }
     }
+
+    /* Klinik: compact options (small logo + name on one line), as many per row as fit, wrapping on phones;
+       chosen = klinik colour border */
+    #modalDaftarKunjunganRawatJalan .rj-klinik-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 6px;
+    }
+
+    #modalDaftarKunjunganRawatJalan .rj-klinik-opt {
+        --klinik: #64748b;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+        min-height: 38px;
+        padding: 5px 10px;
+        border: 1px solid #d5dbe7;
+        border-radius: 6px;
+        background: #fff;
+        color: #475569;
+        text-align: left;
+        cursor: pointer;
+        transition: border-color .12s, box-shadow .12s, background-color .12s;
+    }
+
+    #modalDaftarKunjunganRawatJalan .rj-klinik-opt:hover {
+        border-color: #aab4c8;
+    }
+
+    #modalDaftarKunjunganRawatJalan .rj-klinik-opt:focus-visible {
+        outline: 2px solid var(--klinik);
+        outline-offset: 1px;
+    }
+
+    #modalDaftarKunjunganRawatJalan .rj-klinik-opt.active {
+        border-color: var(--klinik);
+        box-shadow: inset 0 0 0 1px var(--klinik);
+        background: #fff;
+        background: color-mix(in srgb, var(--klinik) 6%, #fff);
+        color: #1e293b;
+    }
+
+    #modalDaftarKunjunganRawatJalan .rj-klinik-logo {
+        flex: 0 0 22px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        height: 22px;
+    }
+
+    #modalDaftarKunjunganRawatJalan .rj-klinik-logo img {
+        max-width: 22px;
+        max-height: 22px;
+        object-fit: contain;
+    }
+
+    #modalDaftarKunjunganRawatJalan .rj-klinik-initial {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        height: 22px;
+        border-radius: 5px;
+        background: var(--klinik);
+        color: #fff;
+        font-size: 0.72rem;
+        font-weight: 700;
+    }
+
+    #modalDaftarKunjunganRawatJalan .rj-klinik-name {
+        min-width: 0;
+        font-size: 0.76rem;
+        font-weight: 600;
+        line-height: 1.2;
+        overflow: hidden;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+    }
+
+    /* Layanan: compact grid of square-cornered toggles, same look as the Cara Bayar toggle */
+    #modalDaftarKunjunganRawatJalan .rj-layanan-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 6px;
+    }
+
+    #modalDaftarKunjunganRawatJalan .rj-layanan-opt {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        min-height: 34px;
+        padding: 4px 6px;
+        border: 1px solid #93b4f5;
+        border-radius: 4px;
+        background: #fff;
+        color: #1d4ed8;
+        font-size: 0.8rem;
+        font-weight: 600;
+        line-height: 1.2;
+        cursor: pointer;
+        transition: background-color .12s, border-color .12s, color .12s;
+    }
+
+    #modalDaftarKunjunganRawatJalan .rj-layanan-opt i {
+        font-size: 0.78rem;
+    }
+
+    #modalDaftarKunjunganRawatJalan .rj-layanan-opt span {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    #modalDaftarKunjunganRawatJalan .rj-layanan-opt:hover {
+        background: #eef4ff;
+    }
+
+    #modalDaftarKunjunganRawatJalan .rj-layanan-opt:focus-visible {
+        outline: none;
+        box-shadow: 0 0 0 0.15rem rgba(29, 99, 237, 0.25);
+    }
+
+    #modalDaftarKunjunganRawatJalan .rj-layanan-opt.active,
+    #modalDaftarKunjunganRawatJalan .rj-layanan-opt.active:hover {
+        background: #1d63ed;
+        border-color: #1d63ed;
+        color: #fff;
+    }
+
+    #modalDaftarKunjunganRawatJalan #rj_layanan_hint {
+        display: block;
+        margin-top: 4px;
+        color: #b45309;
+    }
+
+    /* Marketplace choice: same square toggles as the layanan grid */
+    #modalDaftarKunjunganRawatJalan .rj-marketplace-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 6px;
+    }
+
+    @media (max-width: 480px) {
+        #modalDaftarKunjunganRawatJalan .rj-marketplace-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+
+    /* Marketplace buttons: signature colour as a small mark, the whole button in that colour when chosen */
+    #modalDaftarKunjunganRawatJalan .rj-brand-opt {
+        --brand: #64748b;
+        --brand-accent: var(--brand);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        min-height: 34px;
+        padding: 4px 6px;
+        border: 1px solid #d5dbe7;
+        border-radius: 4px;
+        background: #fff;
+        color: #334155;
+        font-size: 0.8rem;
+        font-weight: 600;
+        line-height: 1.2;
+        white-space: nowrap;
+        cursor: pointer;
+        transition: background-color .12s, border-color .12s, color .12s;
+    }
+
+    #modalDaftarKunjunganRawatJalan .rj-brand-dot {
+        flex: 0 0 10px;
+        width: 10px;
+        height: 10px;
+        border-radius: 3px;
+        background: linear-gradient(135deg, var(--brand) 55%, var(--brand-accent) 55%);
+    }
+
+    #modalDaftarKunjunganRawatJalan .rj-brand-opt:hover {
+        border-color: var(--brand);
+    }
+
+    #modalDaftarKunjunganRawatJalan .rj-brand-opt:focus-visible {
+        outline: 2px solid var(--brand);
+        outline-offset: 1px;
+    }
+
+    #modalDaftarKunjunganRawatJalan .rj-brand-opt.active {
+        background: var(--brand);
+        border-color: var(--brand);
+        color: #fff;
+    }
+
+    #modalDaftarKunjunganRawatJalan .rj-brand-opt.active .rj-brand-dot {
+        background: var(--brand-accent);
+        box-shadow: 0 0 0 1.5px rgba(255, 255, 255, .85);
+    }
+
+    :root.theme-dark #modalDaftarKunjunganRawatJalan .rj-brand-opt {
+        background: transparent;
+        border-color: rgba(148, 163, 184, .35);
+        color: #cbd5e1;
+    }
+
+    :root.theme-dark #modalDaftarKunjunganRawatJalan .rj-brand-opt.active {
+        background: var(--brand);
+        border-color: var(--brand);
+        color: #fff;
+    }
+
+    /* TikTok's black disappears on the dark panel: outline it */
+    :root.theme-dark #modalDaftarKunjunganRawatJalan .rj-brand-opt[data-value="tiktokshop"].active {
+        border-color: rgba(255, 255, 255, .45);
+    }
+
+    /* Jenis kelamin: ♂ / ♀ icon before the label (blue / pink while not chosen) */
+    #modalDaftarKunjunganRawatJalan .rj-gender-opt i {
+        margin-right: 6px;
+    }
+
+    #modalDaftarKunjunganRawatJalan .rj-gender-opt[data-value="Laki-laki"]:not(.active) i {
+        color: #2563eb;
+    }
+
+    #modalDaftarKunjunganRawatJalan .rj-gender-opt[data-value="Perempuan"]:not(.active) i {
+        color: #db2777;
+    }
+
+    /* Thin line between the tujuan block and the pasien block */
+    #modalDaftarKunjunganRawatJalan .rj-section-sep {
+        margin: 4px 0 12px;
+        border: 0;
+        border-top: 1px solid #e3e8f0;
+    }
+
+    :root.theme-dark #modalDaftarKunjunganRawatJalan .rj-section-sep {
+        border-top-color: rgba(148, 163, 184, .2);
+    }
+
+    /* Phones: klinik options wrap by themselves (auto-fit); layanan in 2 columns */
+    @media (max-width: 480px) {
+        #modalDaftarKunjunganRawatJalan .rj-layanan-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+
+    :root.theme-dark #modalDaftarKunjunganRawatJalan .rj-klinik-opt,
+    :root.theme-dark #modalDaftarKunjunganRawatJalan .rj-layanan-opt {
+        background: transparent;
+        border-color: rgba(148, 163, 184, .35);
+        color: #cbd5e1;
+    }
+
+    :root.theme-dark #modalDaftarKunjunganRawatJalan .rj-klinik-opt.active {
+        border-color: var(--klinik);
+        background: color-mix(in srgb, var(--klinik) 14%, transparent);
+        color: #f1f5f9;
+    }
+
+    :root.theme-dark #modalDaftarKunjunganRawatJalan .rj-layanan-opt:hover {
+        background: rgba(148, 163, 184, .12);
+    }
+
+    :root.theme-dark #modalDaftarKunjunganRawatJalan .rj-layanan-opt.active {
+        background: #1d63ed;
+        border-color: #1d63ed;
+        color: #fff;
+    }
+
+    :root.theme-dark #modalDaftarKunjunganRawatJalan #rj_layanan_hint {
+        color: #fbbf24;
+    }

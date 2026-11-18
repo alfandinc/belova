@@ -1,6 +1,7 @@
 {{--
-    Shared "Daftarkan Kunjungan" button + dropdown. Opens the shared modal
-    (erm.rawatjalans.partials.modal-daftar-kunjungan), which must be included on the page.
+    Shared "Daftarkan Kunjungan" button. Opens the shared modal
+    (erm.rawatjalans.partials.modal-daftar-kunjungan), which must be included on the page;
+    klinik and layanan are picked there with chips (no jenis dropdown here any more).
 
     Optional params:
       $label      button text (default "Daftarkan Kunjungan")
@@ -14,25 +15,7 @@
     $pasienData = !empty($pasienId)
         ? ' data-id="' . e($pasienId) . '" data-nama="' . e($pasienNama ?? '') . '"'
         : '';
-    // No Event here: event visits are registered from the event page
-    $items = [
-        ['jenis' => 'konsultasi', 'icon' => 'fas fa-stethoscope', 'text' => 'Konsultasi'],
-        ['jenis' => 'lab', 'icon' => 'fas fa-flask', 'text' => 'Laboratorium'],
-        ['jenis' => 'produk', 'icon' => 'fas fa-shopping-bag', 'text' => 'Produk dan Obat'],
-        ['jenis' => 'marketplace', 'icon' => 'fas fa-store', 'text' => 'Marketplace'],
-        ['jenis' => 'reseller', 'icon' => 'fas fa-boxes', 'text' => 'Reseller'],
-        ['jenis' => 'slimming', 'icon' => 'fas fa-weight', 'text' => 'Slimming'],
-        ['jenis' => 'vaksin', 'icon' => 'fas fa-syringe', 'text' => 'Vaksin'],
-        ['jenis' => 'mcu', 'icon' => 'fas fa-heartbeat', 'text' => 'MCU'],
-    ];
 @endphp
-<div class="btn-group" role="group">
-    <button type="button" class="btn btn-success{{ $btnSize }} dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-        <i class="fas fa-calendar-plus mr-1"></i> {{ $label }}
-    </button>
-    <div class="dropdown-menu dropdown-menu-right">
-        @foreach($items as $item)
-            <a href="#" class="dropdown-item btn-daftarkan-pasien-rawatjalan" data-jenis="{{ $item['jenis'] }}"{!! $pasienData !!}><i class="{{ $item['icon'] }} mr-2"></i>{{ $item['text'] }}</a>
-        @endforeach
-    </div>
-</div>
+<button type="button" class="btn btn-success{{ $btnSize }} btn-daftarkan-pasien-rawatjalan" data-jenis="konsultasi"{!! $pasienData !!}>
+    <i class="fas fa-calendar-plus mr-1"></i> {{ $label }}
+</button>

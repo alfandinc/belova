@@ -179,10 +179,15 @@ class RawatJalanController extends Controller
             return response('Unauthenticated', 401);
         }
 
-        $dokters = Cache::remember('erm_dokters_list', 300, function() {
-            return Dokter::select('id', 'user_id', 'spesialisasi_id')
-                ->with(['user:id,name', 'spesialisasi:id,nama'])
-                ->get();
+        // + klinik ids (mapping, else the old klinik_id) so the Dokter filter follows the Klinik filter
+        $dokters = Cache::remember('erm_dokters_list_klinik', 300, function() {
+            return Dokter::select('id', 'user_id', 'spesialisasi_id', 'klinik_id')
+                ->with(['user:id,name', 'spesialisasi:id,nama', 'kliniks:id'])
+                ->get()
+                ->each(function ($dokter) {
+                    $ids = $dokter->kliniks->pluck('id')->all();
+                    $dokter->setAttribute('klinik_ids', $ids ?: array_filter([$dokter->klinik_id]));
+                });
         });
 
         $metodeBayar = MetodeBayar::cachedList();
@@ -1053,6 +1058,8 @@ class RawatJalanController extends Controller
                     $waitingButton = function (string $icon, string $label, string $title = 'Menunggu asesmen perawat') {
                         return '<span class="btn btn-sm btn-light text-muted" style="font-weight:bold; cursor:not-allowed;" aria-disabled="true" title="' . e($title) . '"><i class="' . $icon . ' mr-1"></i>' . e($label) . '</span>';
                     };
+                    // Count inside the button (not a floating corner badge, which overlapped the next button)
+                    $countBadge = fn (int $n) => $n > 0 ? '<span class="rj-btn-count">' . $n . '</span>' : '';
                     $isVaksinVisit = (int) $v->jenis_kunjungan === Visitation::TYPE_VAKSIN;
                     $hasScreeningVaksin = !empty($v->has_screening_vaksin);
                     $isClinicalVisit = Visitation::isClinicalType($v->jenis_kunjungan);
@@ -1083,17 +1090,11 @@ class RawatJalanController extends Controller
                         // "Tindakan saja" (asesmen dokter skipped in the asesmen perawat): the perawat records the tindakan
                         if (!empty($v->dokter_dilewati)) {
                             $tindakanCount = intval($v->riwayat_tindakan_count ?? 0);
-                            $tindakanBadge = $tindakanCount > 0
-                                ? '<span class="position-absolute badge badge-danger" style="top:-6px; right:-6px; min-width:18px; height:18px; line-height:18px; padding:0 4px; font-size:10px; border-radius:999px;">' . $tindakanCount . '</span>'
-                                : '';
-                            $actionButtons[] = '<a href="' . route('erm.tindakan.create', $v->id) . '" class="btn btn-sm btn-warning position-relative" style="font-weight:bold; overflow:visible;" title="Tindakan saja (tanpa asesmen dokter)"><i class="fas fa-procedures mr-1"></i>Tindakan' . $tindakanBadge . '</a>';
+                            $actionButtons[] = '<a href="' . route('erm.tindakan.create', $v->id) . '" class="btn btn-sm btn-warning" style="font-weight:bold;" title="Tindakan saja (tanpa asesmen dokter)"><i class="fas fa-hand-holding-medical mr-1"></i>Tindakan' . $countBadge($tindakanCount) . '</a>';
                         }
                     } elseif ($user->hasRole('Dokter')) {
                         $tindakanUrl = route('erm.tindakan.create', $v->id);
                         $tindakanCount = intval($v->riwayat_tindakan_count ?? 0);
-                        $tindakanBadge = $tindakanCount > 0
-                            ? '<span class="position-absolute badge badge-danger" style="top:-6px; right:-6px; min-width:18px; height:18px; line-height:18px; padding:0 4px; font-size:10px; border-radius:999px;">' . $tindakanCount . '</span>'
-                            : '';
                         if ($v->status_dokumen === 'asesmen') {
                             $url = route('erm.asesmendokter.create', $v->id);
                             $actionButtons[] = '<a href="' . $url . '" class="btn btn-sm btn-primary" style="font-weight:bold;" title="Asesmen"><i class="fas fa-user-md mr-1"></i>Asesmen</a>';
@@ -1105,9 +1106,9 @@ class RawatJalanController extends Controller
                         }
                         // Tindakan already recorded stays reachable
                         if ($waitingForPerawat && $tindakanCount === 0) {
-                            $actionButtons[] = $waitingButton('fas fa-procedures', 'Tindakan');
+                            $actionButtons[] = $waitingButton('fas fa-hand-holding-medical', 'Tindakan');
                         } else {
-                            $actionButtons[] = '<a href="' . $tindakanUrl . '" class="btn btn-sm btn-warning position-relative" style="font-weight:bold; overflow:visible;" title="Tindakan"><i class="fas fa-procedures mr-1"></i>Tindakan' . $tindakanBadge . '</a>';
+                            $actionButtons[] = '<a href="' . $tindakanUrl . '" class="btn btn-sm btn-warning" style="font-weight:bold;" title="Tindakan"><i class="fas fa-hand-holding-medical mr-1"></i>Tindakan' . $countBadge($tindakanCount) . '</a>';
                         }
                     } elseif ($user->hasRole('Admin') && $isClinicalVisit) {
                         // Admin (not Perawat / Dokter): every dokumen page of the visit, e.g. for checking and testing
@@ -1148,22 +1149,14 @@ class RawatJalanController extends Controller
 
                     $labCount = intval($v->lab_permintaan_count ?? 0);
                     $allLabCompleted = $labCount > 0 && intval($v->lab_permintaan_completed_count ?? 0) === $labCount;
-                    $labButtonClass = $allLabCompleted ? 'btn-success' : 'btn-warning blinking';
-                    $labTitle = $allLabCompleted ? 'Semua permintaan lab selesai' : 'Ada permintaan lab belum selesai';
                     if ($user->hasAnyRole(['Lab', 'Admin']) && ($labCount > 0 || (int) $v->jenis_kunjungan === 3)) {
-                        // Lab staff open the E-Lab page directly (replaces the old E-Lab visit list)
-                        $labBadge = $labCount > 0
-                            ? '<span class="position-absolute badge badge-danger" style="top:-6px; right:-6px; min-width:18px; height:18px; line-height:18px; padding:0 4px; font-size:10px; border-radius:999px;">' . $labCount . '</span>'
-                            : '';
-                        $labLinkClass = $labCount > 0 ? $labButtonClass : 'btn-info';
-                        $actionButtons[] = '<a href="' . route('erm.elab.create', $v->id) . '" class="btn btn-sm ' . $labLinkClass . ' position-relative" style="font-weight:bold; overflow:visible;" title="' . e($labCount > 0 ? $labTitle : 'Buka E-Lab') . '"><i class="fas fa-flask mr-1"></i>Lab' . $labBadge . '</a>';
-                    } elseif ($labCount > 0) {
-                        $actionButtons[] = '<button class="btn btn-sm ' . $labButtonClass . ' lab-icon" style="font-weight:bold;" title="' . e($labTitle) . '" data-visitation-id="' . e($v->id) . '"><i class="fas fa-flask mr-1"></i>Lab</button>';
+                        // Lab staff open the E-Lab page directly (replaces the old E-Lab visit list).
+                        // Solid colour, no blinking: pending = warning, all done = success, nothing yet = info.
+                        $labLinkClass = $labCount === 0 ? 'btn-info' : ($allLabCompleted ? 'btn-success' : 'btn-warning');
+                        $labTitle = $labCount === 0 ? 'Buka E-Lab' : ($allLabCompleted ? 'Semua permintaan lab selesai' : 'Ada permintaan lab belum selesai');
+                        $actionButtons[] = '<a href="' . route('erm.elab.create', $v->id) . '" class="btn btn-sm ' . $labLinkClass . '" style="font-weight:bold;" title="' . e($labTitle) . '"><i class="fas fa-flask mr-1"></i>E-Lab' . $countBadge($labCount) . '</a>';
                     }
-
-                    if (intval($v->surat_mondok_count ?? 0) > 0 && !empty($v->latest_surat_mondok_id)) {
-                        $actionButtons[] = '<a href="' . route('surat.mondok', $v->latest_surat_mondok_id) . '" target="_blank" class="btn btn-sm btn-primary" style="font-weight:bold;" title="Buka Surat Mondok"><i class="fas fa-bed mr-1"></i>Surat Mondok</a>';
-                    }
+                    // Other roles: lab result and surat are opened from their chips in the Status column (one place each)
 
                         $buttonHtml = '';
                         if (!empty($actionButtons)) {
@@ -1179,7 +1172,7 @@ class RawatJalanController extends Controller
                     $isiItems = [];
                     $tindakanCount = intval($v->riwayat_tindakan_count ?? 0);
                     if ($tindakanCount > 0) {
-                        $isiItems[] = ['fas fa-procedures', 'Tindakan', $tindakanCount, 'tindakan'];
+                        $isiItems[] = ['fas fa-hand-holding-medical', 'Tindakan', $tindakanCount, 'tindakan'];
                     }
                     $tanpaInformConsent = intval($v->tindakan_tanpa_ic ?? 0);
                     $labCount = intval($v->lab_permintaan_count ?? 0);
@@ -1210,12 +1203,25 @@ class RawatJalanController extends Controller
                         return ''; // the Tahap Pelayanan line above is enough
                     }
 
-                    // Icon only (the stage badge above carries the text); the name is in the tooltip, a count as a small number
+                    // Icon only (the stage badge above carries the text); the name is in the tooltip, a count as a small number.
+                    // Lab and surat are the only place for these on the row, so they open their content:
+                    // lab -> popup hasil lab (.lab-icon handler), surat mondok -> the letter.
+                    $suratMondokUrl = (intval($v->surat_mondok_count ?? 0) > 0 && !empty($v->latest_surat_mondok_id))
+                        ? route('surat.mondok', $v->latest_surat_mondok_id) : null;
                     $html = '<div class="rj-isi-kunjungan">';
                     foreach ($isiItems as [$icon, $label, $count, $kind]) {
                         $tooltip = $label . ($count > 0 ? ': ' . $count : '') . ($kind === 'lab' ? ' (belum selesai)' : '');
-                        $html .= '<span class="rj-isi-chip rj-isi-' . $kind . '" title="' . e($tooltip) . '" aria-label="' . e($tooltip) . '">'
-                            . '<i class="' . $icon . '"></i>' . ($count > 1 ? '<b>' . $count . '</b>' : '') . '</span>';
+                        $inner = '<i class="' . $icon . '"></i>' . ($count > 1 ? '<b>' . $count . '</b>' : '');
+                        $cls = 'rj-isi-chip rj-isi-' . $kind;
+                        if ($kind === 'lab' || $kind === 'lab-done') {
+                            $tooltip .= '. Klik untuk lihat permintaan lab.';
+                            $html .= '<button type="button" class="' . $cls . ' rj-isi-click lab-icon" data-visitation-id="' . e($v->id) . '" title="' . e($tooltip) . '" aria-label="' . e($tooltip) . '">' . $inner . '</button>';
+                        } elseif ($kind === 'surat' && $suratMondokUrl) {
+                            $tooltip .= '. Klik untuk buka Surat Mondok.';
+                            $html .= '<a href="' . $suratMondokUrl . '" target="_blank" class="' . $cls . ' rj-isi-click" title="' . e($tooltip) . '" aria-label="' . e($tooltip) . '">' . $inner . '</a>';
+                        } else {
+                            $html .= '<span class="' . $cls . '" title="' . e($tooltip) . '" aria-label="' . e($tooltip) . '">' . $inner . '</span>';
+                        }
                     }
                     if ($tanpaInformConsent > 0) {
                         $tooltip = $tanpaInformConsent . ' tindakan belum diisi inform consent. Klik untuk mengisi.';
@@ -1262,10 +1268,15 @@ class RawatJalanController extends Controller
         ];
 
         // Cache dropdown lists to make page renders lighter
-        $dokters = Cache::remember('erm_dokters_list', 300, function() {
-            return Dokter::select('id', 'user_id', 'spesialisasi_id')
-                ->with(['user:id,name', 'spesialisasi:id,nama'])
-                ->get();
+        // + klinik ids (mapping, else the old klinik_id) so the Dokter filter follows the Klinik filter
+        $dokters = Cache::remember('erm_dokters_list_klinik', 300, function() {
+            return Dokter::select('id', 'user_id', 'spesialisasi_id', 'klinik_id')
+                ->with(['user:id,name', 'spesialisasi:id,nama', 'kliniks:id'])
+                ->get()
+                ->each(function ($dokter) {
+                    $ids = $dokter->kliniks->pluck('id')->all();
+                    $dokter->setAttribute('klinik_ids', $ids ?: array_filter([$dokter->klinik_id]));
+                });
         });
 
         $metodeBayar = MetodeBayar::cachedList();

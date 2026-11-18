@@ -31,7 +31,7 @@ class AlurPelayanan
         'menunggu_perawat' => ['Terdaftar', '#64748b', 'fas fa-user-nurse', 'Sudah terdaftar, asesmen perawat belum diisi'],
         'menunggu_dokter' => ['Menunggu Dokter', '#d39e00', 'fas fa-hourglass-half', 'Asesmen perawat selesai, pasien belum masuk ruang dokter'],
         'diperiksa_dokter' => ['Diperiksa Dokter', '#1d63ed', 'fas fa-user-md', 'Pasien di ruang dokter, pemeriksaan belum disimpan'],
-        'tindakan' => ['Menjalani Tindakan', '#db2777', 'fas fa-procedures', 'Ada tindakan dan belum dibayar (termasuk yang sudah selesai ditindak dan sedang ke kasir)'],
+        'tindakan' => ['Menjalani Tindakan', '#db2777', 'fas fa-hand-holding-medical', 'Ada tindakan dan belum dibayar (termasuk yang sudah selesai ditindak dan sedang ke kasir)'],
         'menunggu_farmasi' => ['Menunggu Farmasi', '#6f42c1', 'fas fa-prescription-bottle-alt', 'Resep belum disubmit farmasi'],
         'menunggu_kasir' => ['Menunggu Kasir', '#e8590c', 'fas fa-cash-register', 'Belum ditransaksikan kasir'],
         'menunggu_hasil_lab' => ['Menunggu Hasil Lab', '#0891b2', 'fas fa-flask', 'Sudah dibayar, hasil lab belum keluar'],

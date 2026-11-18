@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\ERM\Klinik;
+use App\Models\ERM\KlinikLayanan;
 use App\Models\Satusehat\ClinicConfig;
 use App\Models\Satusehat\Location;
 use Illuminate\Database\QueryException;
@@ -32,6 +33,7 @@ class KlinikSettingController extends Controller
             $query = Klinik::query()->select('id', 'nama', 'logo', 'color', 'report_cutoff_time');
             $configs = $this->configsByKlinik();
             $locations = $this->locationsByKlinik();
+            $nonaktif = KlinikLayanan::nonaktifMap();
 
             return DataTables::of($query)
                 ->addColumn('logo_html', function ($row) {
@@ -70,6 +72,16 @@ class KlinikSettingController extends Controller
                         : '<div class="small text-muted"><i class="fas fa-map-marker-alt mr-1"></i>Lokasi belum diatur</div>';
                     return $html;
                 })
+                ->addColumn('layanan_html', function ($row) use ($nonaktif) {
+                    $off = $nonaktif[$row->id] ?? [];
+                    if (!$off) {
+                        return '<span class="badge badge-soft-success">Semua layanan</span>';
+                    }
+                    $labels = array_map(fn ($j) => \App\Models\ERM\Visitation::typeLabel($j), $off);
+
+                    return '<span class="badge badge-soft-secondary">' . (count(KlinikLayanan::JENIS) - count($off)) . ' dari ' . count(KlinikLayanan::JENIS) . ' layanan</span>'
+                        . '<div class="small text-muted mt-1">Nonaktif: ' . e(implode(', ', $labels)) . '</div>';
+                })
                 ->editColumn('report_cutoff_time', function ($row) {
                     return $row->report_cutoff_time ? substr($row->report_cutoff_time, 0, 5) : '-';
                 })
@@ -82,7 +94,7 @@ class KlinikSettingController extends Controller
                         . $token
                         . ' <button type="button" class="btn btn-danger btn-sm btn-delete-klinik" data-id="' . $row->id . '" data-name="' . e($row->nama) . '">Delete</button>';
                 })
-                ->rawColumns(['logo_html', 'color_html', 'satusehat_html', 'actions'])
+                ->rawColumns(['logo_html', 'color_html', 'layanan_html', 'satusehat_html', 'actions'])
                 ->make(true);
         }
 
@@ -109,6 +121,7 @@ class KlinikSettingController extends Controller
             'location' => $location ? $location->only(array_merge(['id'], self::LOCATION_FIELDS)) : null,
             'logo_url' => $klinik->logo ? asset('storage/' . $klinik->logo) : null,
             'report_cutoff_time' => $klinik->report_cutoff_time ? substr($klinik->report_cutoff_time, 0, 5) : null,
+            'layanan' => KlinikLayanan::forKlinik($klinik->id),
             'satusehat' => $config ? array_merge($config->only(array_merge(['id'], self::SATUSEHAT_FIELDS)), [
                 'has_token' => !empty($config->token),
                 'token_expires_at' => $config->token_expires_at ? $config->token_expires_at->format('d M Y H:i') : null,
@@ -149,6 +162,7 @@ class KlinikSettingController extends Controller
             $klinik = Klinik::create($data);
             $this->saveSatusehat($request, $klinik);
             $this->saveLocation($request, $klinik);
+            $this->saveLayanan($request, $klinik);
             return $klinik;
         });
 
@@ -181,6 +195,7 @@ class KlinikSettingController extends Controller
             $klinik->update($data);
             $this->saveSatusehat($request, $klinik);
             $this->saveLocation($request, $klinik);
+            $this->saveLayanan($request, $klinik);
         });
 
         return response()->json([
@@ -228,6 +243,19 @@ class KlinikSettingController extends Controller
         return response()->json([
             'success' => true,
         ]);
+    }
+
+    /** Tab Layanan: checked jenis kunjungan are available, the rest switched off (only when the tab was sent). */
+    private function saveLayanan(Request $request, Klinik $klinik): void
+    {
+        if (!$request->boolean('layanan_dikirim')) {
+            return;
+        }
+        $aktif = array_values(array_intersect(
+            array_map('intval', (array) $request->input('layanan', [])),
+            KlinikLayanan::JENIS
+        ));
+        KlinikLayanan::simpan((int) $klinik->id, $aktif);
     }
 
     private function validateKlinik(Request $request, $ignoreId = null): array
