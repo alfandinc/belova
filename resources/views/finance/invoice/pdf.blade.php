@@ -760,12 +760,13 @@
                         $summaryLineFinal = isset($summaryItem->final_amount) ? $summaryItem->final_amount : $summaryLineNoDisc;
 
                         if (strpos($summaryName, 'biaya administrasi') !== false || strpos($summaryName, 'biaya admin') !== false || strpos($summaryName, 'administrasi') !== false) {
-                            $computedAdminFee += $summaryLineNoDisc;
+                            // fee lines count after their own discount (same as the billing page / stored total)
+                            $computedAdminFee += $summaryLineFinal;
                             continue;
                         }
 
                         if (strpos($summaryName, 'ongkir') !== false || strpos($summaryName, 'biaya ongkir') !== false || strpos($summaryName, 'shipping') !== false) {
-                            $computedShippingFee += $summaryLineNoDisc;
+                            $computedShippingFee += $summaryLineFinal;
                             continue;
                         }
 

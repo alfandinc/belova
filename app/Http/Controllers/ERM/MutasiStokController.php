@@ -180,7 +180,10 @@ class MutasiStokController extends Controller
                 $buttons .= '<button type="button" class="btn btn-info btn-sm btn-detail" data-id="' . $mutasi->id . '" title="Detail"><i class="fas fa-eye"></i></button>';
                 $buttons .= '<a href="' . route('erm.mutasi-stok.print', $mutasi->id) . '" class="btn btn-secondary btn-sm" target="_blank" title="Cetak"><i class="fas fa-print"></i></a>';
                 if ($mutasi->status === MutasiStok::STATUS_PENDING && $this->canDecide($mutasi)) {
-                    $buttons .= '<button type="button" class="btn btn-warning btn-sm btn-detail" data-id="' . $mutasi->id . '" title="Perlu approval Anda"><i class="fas fa-user-check"></i></button>';
+                    // Approve straight from the list; same handler + confirmation as the Detail modal
+                    $buttons .= '<button type="button" class="btn btn-success btn-sm btn-approve" data-id="' . $mutasi->id . '"'
+                        . ' data-nomor="' . e($mutasi->nomor_mutasi) . '" data-nilai="' . (float) $mutasi->total_nilai . '"'
+                        . ' title="Approve"><i class="fas fa-check"></i> Approve</button>';
                 }
                 $buttons .= '</div>';
 

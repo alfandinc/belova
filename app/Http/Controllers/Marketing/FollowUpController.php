@@ -8,6 +8,7 @@ use App\Models\Marketing\FollowUp;
 use App\Models\ERM\Pasien;
 use App\Models\ERM\Klinik;
 use App\Models\HRD\Employee;
+use App\Services\Marketing\SaranFollowUp;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Yajra\DataTables\DataTables;
@@ -28,7 +29,9 @@ class FollowUpController extends Controller
                     ->where('referral_type', \App\Models\ERM\Pasien::REFERRAL_TYPE_FOLLOW_UP)
                     ->whereColumn('referralable_id', DB::raw('CAST(marketing_follow_ups.id AS CHAR)'))
                     ->orderByDesc('tanggal_visitation')
-                    ->limit(1)]);
+                    ->limit(1)])
+                ->withBookedJenis()
+                ->withBookedOmset();
 
             if ($request->filled('kategori')) {
                 $data->where(function ($q) use ($request) {
@@ -59,10 +62,51 @@ class FollowUpController extends Controller
                 ->editColumn('klinik_logo', fn ($row) => Klinik::logoUrl($row->klinik_logo))
                 ->addColumn('tanggal', fn ($row) => $row->created_at ? $row->created_at->format('d/m/Y H:i') : '-')
                 ->editColumn('visit_date', fn ($row) => $row->visit_date ? \Carbon\Carbon::parse($row->visit_date)->format('d/m/Y') : null)
+                // Booked with a jenis kunjungan the kategori do not aim at: still Sukses, marked "jenis lain"
+                ->addColumn('jenis_lain', fn ($row) => $row->status_booking === 'Sukses'
+                    ? FollowUp::jenisLainLabel(json_decode($row->getRawOriginal('kategori'), true) ?: [], $row->booked_jenis)
+                    : null)
+                // Invoice total of the booked visit (Sukses only)
+                ->editColumn('booked_omset', fn ($row) => $row->status_booking === 'Sukses' && $row->booked_omset !== null ? (float) $row->booked_omset : null)
+                // Daftarkan opens the registration modal on the layanan the kategori aim at
+                ->addColumn('daftar_mode', fn ($row) => FollowUp::modeFor(json_decode($row->getRawOriginal('kategori'), true) ?: []))
                 ->make(true);
         }
         // The page itself is the "Follow Up" tab of Pasien & Follow Up
         return redirect()->route('marketing.pasien-data', ['tab' => 'followup']);
+    }
+
+    /** Tab "Perlu Follow Up": pasien suggested from visit data (SaranFollowUp), filter alasan + klinik. */
+    public function saran(Request $request)
+    {
+        $alasan = array_key_exists((string) $request->input('alasan'), SaranFollowUp::ALASAN) ? $request->input('alasan') : null;
+        $query = SaranFollowUp::query($alasan, $request->input('klinik_id') ?: null);
+
+        // Konsultasi first (most urgent), then the most recent trigger
+        if (!$request->filled('order')) {
+            $query->orderByRaw("FIELD(s.alasan, 'konsultasi', 'produk', 'lama')")->orderByDesc('s.trigger_date');
+        }
+
+        return DataTables::of($query)
+            ->filterColumn('pasien_nama', fn ($q, $keyword) => $q->where(fn ($w) => $w->where('p.nama', 'like', "%{$keyword}%")->orWhere('p.id', 'like', "{$keyword}%")))
+            ->orderColumn('pasien_nama', 'p.nama $1')
+            ->orderColumn('trigger_date', 's.trigger_date $1')
+            ->editColumn('klinik_nama', fn ($row) => $row->klinik_nama ? Klinik::shortName($row->klinik_nama) : null)
+            ->editColumn('klinik_logo', fn ($row) => Klinik::logoUrl($row->klinik_logo))
+            ->addColumn('alasan_label', fn ($row) => SaranFollowUp::ALASAN[$row->alasan]['label'] ?? $row->alasan)
+            ->addColumn('alasan_color', fn ($row) => SaranFollowUp::ALASAN[$row->alasan]['color'] ?? 'secondary')
+            ->addColumn('keterangan', fn ($row) => SaranFollowUp::keterangan($row->alasan, $row->trigger_date, $row->jenis_kunjungan))
+            ->addColumn('kategori', fn ($row) => SaranFollowUp::kategoriFor($row->alasan, $row->klinik_id))
+            ->editColumn('trigger_date', fn ($row) => \Carbon\Carbon::parse($row->trigger_date)->format('d/m/Y'))
+            ->make(true);
+    }
+
+    /** Count per alasan for the tab badge and the alasan chips. */
+    public function saranCount(Request $request)
+    {
+        $counts = SaranFollowUp::counts($request->input('klinik_id') ?: null);
+
+        return response()->json(['per_alasan' => $counts, 'total' => array_sum($counts)]);
     }
 
     /** Follow ups created within start_date..end_date (whole days, today when not given). */
@@ -216,6 +260,18 @@ class FollowUpController extends Controller
         $countBatal = (clone $baseQuery)->where('status_booking', 'Batal')->count();
         $countMenunggu = (clone $baseQuery)->where('status_booking', 'Menunggu')->count();
         $countSukses = (clone $baseQuery)->where('status_booking', 'Sukses')->count();
+        // Sukses: booked with a jenis kunjungan the kategori do not aim at ("jenis lain") + omset of the booked visits
+        $suksesRows = $countSukses ? (clone $baseQuery)->where('status_booking', 'Sukses')
+            ->select('marketing_follow_ups.kategori', 'marketing_follow_ups.sales_id')->withBookedJenis()->get() : collect();
+        $countSuksesJenisLain = $suksesRows
+            ->filter(fn ($row) => FollowUp::jenisLainLabel(json_decode($row->getRawOriginal('kategori'), true) ?: [], $row->booked_jenis) !== null)
+            ->count();
+        $omsetPerVisit = FollowUp::omsetPerVisit($suksesRows->pluck('booked_visit_id'));
+        // A visit counts once even if two follow ups booked it
+        $omsetTotal = array_sum($omsetPerVisit);
+        $omsetPerSales = $suksesRows->unique('booked_visit_id')
+            ->groupBy('sales_id')
+            ->map(fn ($rows) => $rows->sum(fn ($row) => $omsetPerVisit[$row->booked_visit_id] ?? 0));
         
         // Kategori counts (JSON field)
         $perKategori = [];
@@ -257,6 +313,7 @@ class FollowUpController extends Controller
             'jumlah' => (int) $row->jumlah,
             'booking' => (int) $row->booking,
             'persen' => $row->jumlah > 0 ? round($row->booking / $row->jumlah * 100) : 0,
+            'omset' => (float) ($omsetPerSales[$row->sales_id] ?? 0),
         ])->all();
 
         return response()->json([
@@ -270,6 +327,8 @@ class FollowUpController extends Controller
             'batal' => $countBatal,
             'menunggu' => $countMenunggu,
             'sukses' => $countSukses,
+            'sukses_jenis_lain' => $countSuksesJenisLain,
+            'omset' => $omsetTotal,
             'per_kategori' => $perKategori,
             'per_klinik' => $perKlinik,
             'top_sales' => $salesList

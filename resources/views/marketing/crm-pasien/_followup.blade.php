@@ -74,6 +74,10 @@
             <div class="crm-kpi" data-filter="status_booking" data-value="Sukses" role="button" tabindex="0">
                 <div class="crm-stat-label">Booking sukses</div>
                 <div><span class="crm-kpi-value text-success" id="bookingSukses">0</span> <span class="crm-stat-sub">menunggu <b id="bookingMenunggu">0</b> · batal <b id="bookingBatal">0</b></span></div>
+                <div class="crm-stat-sub" title="Total invoice kunjungan yang terjadi dari follow up (setelah retur)">omset <b class="text-success" id="bookingOmset">Rp 0</b></div>
+                <div class="crm-stat-sub d-none" id="bookingJenisLainWrap" title="Pasien datang, tapi jenis kunjungannya bukan yang dituju kategori follow up">
+                    sesuai kategori <b id="bookingSesuai">0</b> · jenis lain <b id="bookingJenisLain">0</b>
+                </div>
             </div>
         </div>
 
@@ -155,8 +159,12 @@
                 <label class="d-block">Kategori <span class="text-danger">*</span> <small class="text-muted">(boleh lebih dari satu)</small></label>
                 <div class="btn-group-toggle crm-chips" data-toggle="buttons" id="kategoriGroup">
                   @foreach(\App\Models\Marketing\FollowUp::KATEGORI as $kategori => $opt)
+                      @php
+                          // Kliniks offering it (KATEGORI list + Klinik Setting > Layanan); "0" = none, so never "all"
+                          $offeredKliniks = collect($kliniks)->filter(fn ($k) => \App\Models\Marketing\FollowUp::kategoriOfferedFor($kategori, $k->id))->pluck('id');
+                      @endphp
                       <label class="btn btn-sm crm-chip-toggle" style="--chip: {{ $kategoriHex[$opt['color']] ?? '#6c757d' }};"
-                             data-kliniks="{{ $opt['kliniks'] === null ? '' : implode(',', $opt['kliniks']) }}">
+                             data-kliniks="{{ $offeredKliniks->count() === count($kliniks) ? '' : ($offeredKliniks->implode(',') ?: '0') }}">
                           <input type="checkbox" name="kategori[]" value="{{ $kategori }}" autocomplete="off">{{ $kategori }}
                       </label>
                   @endforeach
@@ -329,7 +337,7 @@ $(function () {
         var klinikId = $('#klinikSelect').val();
         $('#kategoriGroup label').each(function () {
             var $input = $(this).find('input');
-            var kliniks = String($(this).data('kliniks') || '');
+            var kliniks = String($(this).attr('data-kliniks') || ''); // attr, not data(): "0" (offered nowhere) must stay truthy
             var keep = !kliniks || !klinikId || kliniks.split(',').indexOf(klinikId) !== -1
                 || savedKategori.indexOf($input.val()) !== -1;
             if (!keep && $input.prop('checked')) {
@@ -452,10 +460,16 @@ $(function () {
     });
     $('#buktiClear').on('click', clearBukti);
 
-    // New follow up, optionally for a given pasien ({id, nama})
+    // New follow up, optionally for a given pasien ({id, nama}); from Perlu Follow Up also {klinik_id, kategori, catatan}
     crm.openFollowUp = function (pasien) {
         resetForm();
         setSelectOption($('#pasienSelect'), pasien && pasien.id, pasien && (pasien.nama + ' (' + pasien.id + ')'));
+        if (pasien && pasien.klinik_id) {
+            setKlinik(pasien.klinik_id, 'Dari saran Perlu Follow Up.');
+            klinikPicked = true; // the pasien lookup must not replace it
+        }
+        if (pasien && pasien.kategori) setToggle($('#kategoriGroup'), pasien.kategori);
+        if (pasien && pasien.catatan) $('#catatan').val(pasien.catatan);
         setSelectOption($('#salesSelect'), defaultSales && defaultSales.id, defaultSales && defaultSales.nama);
         setToggle($('#statusResponGroup'), 'Menunggu'); // just contacted, reply not in yet
         $('#followupModalLabel').text(pasien ? 'Follow Up: ' + pasien.nama : 'Tambah Follow Up');
@@ -520,6 +534,7 @@ $(function () {
                 $('#followupModal').modal('hide');
                 crm.reload('followup');
                 crm.reload('pasien'); // FU 7 hari column
+                crm.reload('saran'); // a followed-up pasien leaves Perlu Follow Up
                 Swal.fire({ icon: 'success', title: res.message, timer: 1500, showConfirmButton: false });
             },
             error: function (xhr) {
@@ -571,6 +586,11 @@ window.crmPasien.inits.followup = function () {
             $('#bookingSukses').text(res.sukses ?? 0);
             $('#bookingMenunggu').text(res.menunggu ?? 0);
             $('#bookingBatal').text(res.batal ?? 0);
+            var jenisLain = res.sukses_jenis_lain || 0;
+            $('#bookingJenisLain').text(jenisLain);
+            $('#bookingSesuai').text((res.sukses || 0) - jenisLain);
+            $('#bookingJenisLainWrap').toggleClass('d-none', !jenisLain);
+            $('#bookingOmset').text(crm.rupiah(res.omset));
 
             var share = function (n) { return res.count ? n / res.count * 100 : 0; };
             var num = function (n) { return '<span class="crm-breakdown-num"><b>' + (n || 0) + '</b></span>'; };
@@ -597,7 +617,8 @@ window.crmPasien.inits.followup = function () {
             // Follow ups sent and bookings won; the bar is the conversion
             var sales = (res.top_sales || []).map(function (sale, i) {
                 var nums = '<span class="crm-breakdown-num"><b>' + sale.jumlah + '</b></span>'
-                    + '<span class="crm-breakdown-num ' + (sale.booking ? 'text-success' : 'crm-muted') + '"><b>' + sale.booking + '</b> <small>' + sale.persen + '%</small></span>';
+                    + '<span class="crm-breakdown-num ' + (sale.booking ? 'text-success' : 'crm-muted') + '"><b>' + sale.booking + '</b> <small>' + sale.persen + '%</small></span>'
+                    + (sale.omset ? '<span class="crm-breakdown-num text-success" title="Omset dari follow up"><small>' + crm.rupiah(sale.omset) + '</small></span>' : '');
                 return breakdownRow('<span class="crm-rank">' + (i + 1) + '</span><span title="' + crm.esc(sale.nama) + '">' + crm.esc(sale.nama) + '</span>', nums, null);
             });
             $('#topSalesList').html(sales.join('') || '<li class="crm-muted small">Belum ada</li>');
@@ -672,6 +693,15 @@ window.crmPasien.inits.followup = function () {
                     : row.status_booking === 'Sukses'
                         ? '<span class="badge badge-success mr-1" title="Pasien sudah mendaftar kunjungan"><i class="fas fa-calendar-check mr-1"></i>Sudah booking</span><br class="d-xl-none">'
                         : (row.status_booking === 'Batal' ? '' : '<button type="button" class="btn btn-sm btn-success registerVisitBtn"><i class="fas fa-calendar-plus mr-1"></i>Daftarkan</button> ');
+                if (row.booked_omset) {
+                    visit += '<span class="badge badge-light border border-success text-success mr-1" title="Total invoice kunjungan dari follow up ini">'
+                        + crm.rupiah(row.booked_omset) + '</span><br class="d-xl-none">';
+                }
+                // Still Sukses, but the visit's jenis is not the one the kategori aim at
+                if (row.jenis_lain) {
+                    visit += '<span class="badge badge-light border border-warning text-dark mr-1" title="Pasien datang, tapi jenis kunjungannya bukan yang dituju kategori follow up">'
+                        + '<i class="fas fa-exchange-alt text-warning mr-1"></i>Jenis lain: ' + crm.esc(row.jenis_lain) + '</span><br class="d-xl-none">';
+                }
                 return visit
                     + '<button type="button" class="btn btn-sm btn-outline-primary editBtn" data-id="' + row.id + '"><i class="fas fa-pen mr-1"></i>Edit</button> '
                     + '<button type="button" class="btn btn-sm btn-outline-danger deleteBtn" data-id="' + row.id + '"><i class="fas fa-trash mr-1"></i>Hapus</button>';
@@ -759,6 +789,7 @@ window.crmPasien.inits.followup = function () {
             pasien_id: $('<div>').html(row.pasien_id).text(),
             pasien_nama: nama,
             klinik_id: row.klinik_id,
+            mode: row.daftar_mode,
             label: $('<div>').html(row.tanggal + (row.sales_nama ? ' · ' + row.sales_nama : '')).text()
         });
     });

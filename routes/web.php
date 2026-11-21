@@ -2056,6 +2056,9 @@ Route::prefix('marketing')->middleware('role:Marketing|Admin|Beautician|Finance|
 
     // Follow Up Customer routes
     Route::get('followup/pasien-search', [\App\Http\Controllers\Marketing\FollowUpController::class, 'pasienSearch'])->name('marketing.followup.pasien-search');
+    // Perlu Follow Up: pasien suggested from visit data (before followup/{id})
+    Route::get('followup/saran', [\App\Http\Controllers\Marketing\FollowUpController::class, 'saran'])->name('marketing.followup.saran');
+    Route::get('followup/saran-count', [\App\Http\Controllers\Marketing\FollowUpController::class, 'saranCount'])->name('marketing.followup.saran-count');
     Route::get('followup', [\App\Http\Controllers\Marketing\FollowUpController::class, 'index'])->name('marketing.followup.index');
     Route::post('followup', [\App\Http\Controllers\Marketing\FollowUpController::class, 'store'])->name('marketing.followup.store');
     Route::get('followup/count-today', [\App\Http\Controllers\Marketing\FollowUpController::class, 'countToday'])->name('marketing.followup.count-today');

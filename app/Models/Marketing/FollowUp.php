@@ -16,25 +16,149 @@ class FollowUp extends Model
     public const KATEGORI_ULANG_TAHUN = 'Ulang Tahun';
 
     /**
-     * Kategori => [badge color, klinik ids it is offered for (null = every klinik)].
+     * Kategori => [badge color, klinik ids it is offered for (null = every klinik),
+     * jenis kunjungan it aims at (null = any visit counts, e.g. a birthday greeting)].
      * Klinik ids: 1 Premiere Belova, 2 Belova Skin, 3 Belova Dental.
      * Old follow ups keep their kategori even when it is no longer offered for their klinik.
      */
     public const KATEGORI = [
-        'Produk' => ['color' => 'primary', 'kliniks' => [1, 2]],
-        'Perawatan' => ['color' => 'pink', 'kliniks' => [2, 3]],
+        'Produk' => ['color' => 'primary', 'kliniks' => [1, 2], 'jenis' => Visitation::TYPE_PRODUK],
+        // Perawatan (tindakan) happens inside a konsultasi visit
+        'Perawatan' => ['color' => 'pink', 'kliniks' => [2, 3], 'jenis' => Visitation::TYPE_KONSULTASI],
         // Premiere: follow up after a konsultasi that had no perawatan
-        'Konsultasi' => ['color' => 'success', 'kliniks' => [1]],
-        'Reseller' => ['color' => 'warning', 'kliniks' => [2]],
-        'Slimming' => ['color' => 'purple', 'kliniks' => [2]],
-        self::KATEGORI_ULANG_TAHUN => ['color' => 'info', 'kliniks' => null],
+        'Konsultasi' => ['color' => 'success', 'kliniks' => [1], 'jenis' => Visitation::TYPE_KONSULTASI],
+        'Reseller' => ['color' => 'warning', 'kliniks' => [2], 'jenis' => Visitation::TYPE_RESELLER],
+        'Slimming' => ['color' => 'purple', 'kliniks' => [2], 'jenis' => Visitation::TYPE_SLIMMING],
+        self::KATEGORI_ULANG_TAHUN => ['color' => 'info', 'kliniks' => null, 'jenis' => null],
     ];
 
+    /** Registration modal mode (Daftarkan Kunjungan) per jenis kunjungan a kategori can aim at. */
+    private const JENIS_MODE = [
+        Visitation::TYPE_KONSULTASI => 'konsultasi',
+        Visitation::TYPE_PRODUK => 'produk',
+        Visitation::TYPE_RESELLER => 'reseller',
+        Visitation::TYPE_SLIMMING => 'slimming',
+    ];
+
+    /** Offered for the klinik: listed in KATEGORI and its jenis kunjungan is on in Klinik Setting > Layanan. */
     public static function kategoriOfferedFor(string $kategori, $klinikId): bool
     {
         $kliniks = self::KATEGORI[$kategori]['kliniks'] ?? null;
+        if ($kliniks !== null && !in_array((int) $klinikId, $kliniks, true)) {
+            return false;
+        }
+        $jenis = self::KATEGORI[$kategori]['jenis'] ?? null;
 
-        return $kliniks === null || in_array((int) $klinikId, $kliniks, true);
+        return $jenis === null || \App\Models\ERM\KlinikLayanan::tersedia($klinikId, $jenis);
+    }
+
+    /** Jenis kunjungan the kategori aim at; empty = any visit counts (no kategori, or one like Ulang Tahun). */
+    public static function jenisFor(array $kategori): array
+    {
+        $jenis = [];
+        foreach ($kategori as $k) {
+            $j = self::KATEGORI[$k]['jenis'] ?? null;
+            if ($j === null) {
+                return [];
+            }
+            $jenis[] = $j;
+        }
+
+        return array_values(array_unique($jenis));
+    }
+
+    /** Registration modal mode for the follow up's first kategori that aims at a jenis (konsultasi otherwise). */
+    public static function modeFor(array $kategori): string
+    {
+        foreach ($kategori as $k) {
+            $j = self::KATEGORI[$k]['jenis'] ?? null;
+            if ($j !== null && isset(self::JENIS_MODE[$j])) {
+                return self::JENIS_MODE[$j];
+            }
+        }
+
+        return 'konsultasi';
+    }
+
+    /**
+     * Label of the booked visit's jenis when it is not one the kategori aim at ("jenis lain"), else null.
+     * Booking stays Sukses either way (any visit at the klinik counts); this only marks it.
+     */
+    public static function jenisLainLabel(array $kategori, $bookedJenis): ?string
+    {
+        if ($bookedJenis === null || $bookedJenis === '') {
+            return null;
+        }
+        $jenis = self::jenisFor($kategori);
+
+        return $jenis && !in_array((int) $bookedJenis, $jenis, true) ? Visitation::typeLabel($bookedJenis) : null;
+    }
+
+    /**
+     * Adds booked_visit_id + booked_jenis: the visit that booked the follow up, the same visit markBookedBy picks:
+     * one registered from it (referral "Follow Up"), else the pasien's first visit at its klinik registered within
+     * BOOKING_WINDOW_DAYS after it. Not cancelled. Only meaningful for status_booking Sukses.
+     */
+    public function scopeWithBookedJenis($query)
+    {
+        return $query->addSelect([
+            'booked_visit_id' => self::bookedVisitSub('bv.id'),
+            'booked_jenis' => self::bookedVisitSub('bv.jenis_kunjungan'),
+        ]);
+    }
+
+    /** Adds booked_omset: invoice total of the booked visit (see omsetPerVisit), for the table rows. */
+    public function scopeWithBookedOmset($query)
+    {
+        $sub = \App\Models\Finance\Invoice::query()
+            ->from('finance_invoices as bfi')
+            ->selectRaw('SUM(GREATEST(COALESCE(bfi.total_amount, 0) - COALESCE(bfi.retur_amount, 0), 0))')
+            ->where(fn ($q) => $q->whereNull('bfi.status')->orWhere('bfi.status', '!=', 'canceled'))
+            ->where('bfi.visitation_id', '=', self::bookedVisitSub('bv.id')->toBase());
+
+        return $query->addSelect(['booked_omset' => $sub]);
+    }
+
+    /**
+     * Omset per booked visit: invoice total after approved returs, cancelled invoices left out.
+     * @return array visitation_id => rupiah
+     */
+    public static function omsetPerVisit($visitIds): array
+    {
+        $visitIds = collect($visitIds)->filter()->unique()->values();
+        if ($visitIds->isEmpty()) {
+            return [];
+        }
+
+        return \App\Models\Finance\Invoice::whereIn('visitation_id', $visitIds)
+            ->where(fn ($q) => $q->whereNull('status')->orWhere('status', '!=', 'canceled'))
+            ->selectRaw('visitation_id, SUM(GREATEST(COALESCE(total_amount, 0) - COALESCE(retur_amount, 0), 0)) as omset')
+            ->groupBy('visitation_id')
+            ->pluck('omset', 'visitation_id')
+            ->map(fn ($v) => (float) $v)
+            ->all();
+    }
+
+    /** One column of the booked visit, for scopeWithBookedJenis. */
+    private static function bookedVisitSub(string $column)
+    {
+        $fu = 'marketing_follow_ups';
+
+        return Visitation::query()
+            ->from('erm_visitations as bv')
+            ->select($column)
+            ->whereColumn('bv.pasien_id', "$fu.pasien_id")
+            ->where(fn ($q) => $q->whereNull('bv.status_kunjungan')->orWhere('bv.status_kunjungan', '!=', Visitation::STATUS_DIBATALKAN))
+            ->where(function ($q) use ($fu) {
+                $q->where(fn ($r) => $r->where('bv.referral_type', \App\Models\ERM\Pasien::REFERRAL_TYPE_FOLLOW_UP)
+                        ->whereColumn('bv.referralable_id', \Illuminate\Support\Facades\DB::raw("CAST($fu.id AS CHAR)")))
+                    ->orWhere(fn ($r) => $r->whereColumn('bv.created_at', '>=', "$fu.created_at")
+                        ->whereRaw("bv.created_at <= DATE_ADD($fu.created_at, INTERVAL " . self::BOOKING_WINDOW_DAYS . ' DAY)')
+                        ->where(fn ($k) => $k->whereNull("$fu.klinik_id")->orWhereColumn('bv.klinik_id', "$fu.klinik_id")));
+            })
+            ->orderByRaw("(bv.referral_type = ? AND bv.referralable_id = CAST($fu.id AS CHAR)) DESC", [\App\Models\ERM\Pasien::REFERRAL_TYPE_FOLLOW_UP])
+            ->orderBy('bv.created_at')
+            ->limit(1);
     }
 
     /** Status respon: "Menunggu" = contacted, no reply yet. */

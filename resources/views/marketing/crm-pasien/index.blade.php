@@ -133,14 +133,19 @@ window.crmPasien = {
         return '<a class="crm-wa" href="https://wa.me/' + number + '" target="_blank" rel="noopener" title="Chat WhatsApp">'
             + '<i class="fab fa-whatsapp mr-1"></i>' + phoneHtml + '</a>';
     },
-    // Opens the shared Daftarkan Kunjungan modal for a follow up ({id, pasien_id, pasien_nama, klinik_id, label})
+    // 1250000 -> "Rp 1.250.000"
+    rupiah: function (value) {
+        return 'Rp ' + Math.round(Number(value) || 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    },
+    // Opens the shared Daftarkan Kunjungan modal for a follow up ({id, pasien_id, pasien_nama, klinik_id, mode, label});
+    // mode = the layanan its kategori aim at (FollowUp::modeFor), konsultasi when not given
     registerVisit: function (followUp) {
         if (typeof window.openDaftarKunjunganModal !== 'function') {
             Swal.fire('Tidak tersedia', 'Form pendaftaran kunjungan belum siap, muat ulang halaman.', 'error');
             return;
         }
         window.openDaftarKunjunganModal({
-            jenis: 'konsultasi',
+            jenis: followUp.mode || 'konsultasi',
             pasienId: followUp.pasien_id,
             pasienNama: followUp.pasien_nama,
             klinikId: followUp.klinik_id || '',
@@ -219,6 +224,12 @@ window.crmPasien = {
             </a>
         </li>
         <li class="nav-item">
+            <a class="nav-link {{ $activeTab === 'saran' ? 'active' : '' }}" data-toggle="tab" href="#tab-saran" data-tab="saran" role="tab">
+                <i class="fas fa-lightbulb mr-1"></i>Perlu Follow Up
+                <span class="badge badge-pill badge-warning d-none" id="crmSaranBadge" title="Pasien yang disarankan untuk di-follow up"></span>
+            </a>
+        </li>
+        <li class="nav-item">
             <a class="nav-link {{ $activeTab === 'ulang-tahun' ? 'active' : '' }}" data-toggle="tab" href="#tab-ulang-tahun" data-tab="ulang-tahun" role="tab">
                 <i class="fas fa-birthday-cake mr-1"></i>Ulang Tahun
                 @if($birthdayTodayCount > 0)
@@ -234,6 +245,9 @@ window.crmPasien = {
         </div>
         <div class="tab-pane fade {{ $activeTab === 'followup' ? 'show active' : '' }}" id="tab-followup" role="tabpanel">
             @include('marketing.crm-pasien._followup')
+        </div>
+        <div class="tab-pane fade {{ $activeTab === 'saran' ? 'show active' : '' }}" id="tab-saran" role="tabpanel">
+            @include('marketing.crm-pasien._saran')
         </div>
         <div class="tab-pane fade {{ $activeTab === 'ulang-tahun' ? 'show active' : '' }}" id="tab-ulang-tahun" role="tabpanel">
             @include('marketing.crm-pasien._ulang_tahun')
@@ -282,11 +296,18 @@ $(function () {
         crm.openFollowUp(null);
     });
 
-    // A visit registered from here marks its follow up booked
+    // A visit registered from here marks its follow up booked (and ends a Perlu Follow Up suggestion)
     $(document).on('rj:visitation-registered', function () {
         crm.reload('followup');
         crm.reload('pasien');
+        crm.reload('saran');
     });
+
+    // Perlu Follow Up tab badge: total suggestions (refreshed by that tab's table too)
+    crm.setSaranBadge = function (total) {
+        $('#crmSaranBadge').text(total > 999 ? '999+' : total).toggleClass('d-none', !total);
+    };
+    $.get("{{ route('marketing.followup.saran-count') }}", function (res) { crm.setSaranBadge(res.total); });
 
     showTab(@json($activeTab));
 });
