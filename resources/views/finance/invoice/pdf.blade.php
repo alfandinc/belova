@@ -527,30 +527,16 @@
             <tr>
                 <td class="logo-cell">
                     @php
-                        $logoPath = '';
-                        $logoSrc = '';
-                        if ($invoice->visitation->klinik_id == 1) {
-                            $logoPath = public_path('img/header-premiere.png');
-                            $altText = 'Premiere Logo';
-                        } elseif ($invoice->visitation->klinik_id == 2) {
-                            $logoPath = public_path('img/header-belova.png');
-                            $altText = 'Belova Logo';
-                        } elseif ($invoice->visitation->klinik_id == 3) {
-                            // Dental logo is 5000+ px: use the small cached JPEG (DomPDF decodes big PNGs slowly)
-                            $dentalJpeg = \App\Support\PdfLetterhead::logo('img/logo-dental.png');
-                            $logoSrc = $dentalJpeg && is_file($dentalJpeg)
-                                ? 'data:' . (str_ends_with($dentalJpeg, '.jpg') ? 'image/jpeg' : 'image/png') . ';base64,' . base64_encode(file_get_contents($dentalJpeg))
-                                : '';
-                            $altText = 'Belova Dental Care';
-                        } else {
-                            $altText = optional($invoice->visitation->klinik)->nama ?: 'Klinik';
-                        }
-
-                        $logoBase64 = $logoSrc;
-                        if (!$logoBase64 && $logoPath && file_exists($logoPath)) {
-                            $logoData = file_get_contents($logoPath);
-                            $logoBase64 = 'data:image/png;base64,' . base64_encode($logoData);
-                        }
+                        // Klinik logo (Klinik Setting > Kop & Logo PDF, else the built-in file) as a small cached JPEG:
+                        // DomPDF decodes big PNGs with transparency slowly. Data URI: the controller's setOptions()
+                        // resets DomPDF's chroot, so file paths would not load.
+                        $invKlinikId = (int) $invoice->visitation->klinik_id;
+                        $logoBase64 = \App\Support\PdfLetterhead::dataUri(\App\Support\PdfLetterhead::klinikLogo(
+                            $invKlinikId,
+                            [1 => 'img/header-premiere.png', 2 => 'img/header-belova.png', 3 => 'img/logo-dental.png'][$invKlinikId] ?? null
+                        ));
+                        $altText = [1 => 'Premiere Logo', 2 => 'Belova Logo', 3 => 'Belova Dental Care'][$invKlinikId]
+                            ?? (optional($invoice->visitation->klinik)->nama ?: 'Klinik');
                     @endphp
 
                     @if($logoBase64)

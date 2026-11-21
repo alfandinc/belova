@@ -2200,6 +2200,14 @@ Route::prefix('admin')->middleware(['auth', 'role:Admin'])->group(function () {
         Route::put('/klinik-settings/{id}', [\App\Http\Controllers\Admin\KlinikSettingController::class, 'update'])->name('admin.klinik_settings.update');
         Route::delete('/klinik-settings/{id}', [\App\Http\Controllers\Admin\KlinikSettingController::class, 'destroy'])->name('admin.klinik_settings.destroy');
 
+        // Kop & Logo of the PDFs (per klinik, perusahaan, lab)
+        Route::get('/pdf-kop', [\App\Http\Controllers\Admin\PdfKopController::class, 'show'])->name('admin.pdf_kop.show');
+        Route::post('/pdf-kop/upload', [\App\Http\Controllers\Admin\PdfKopController::class, 'upload'])->name('admin.pdf_kop.upload');
+        Route::post('/pdf-kop/hapus', [\App\Http\Controllers\Admin\PdfKopController::class, 'hapus'])->name('admin.pdf_kop.hapus');
+        Route::post('/pdf-kop/teks', [\App\Http\Controllers\Admin\PdfKopController::class, 'teks'])->name('admin.pdf_kop.teks');
+        Route::get('/pdf-kop/contoh', [\App\Http\Controllers\Admin\PdfKopController::class, 'contoh'])->name('admin.pdf_kop.contoh');
+        Route::get('/pdf-kop/template/{jenis}', [\App\Http\Controllers\Admin\PdfKopController::class, 'template'])->name('admin.pdf_kop.template');
+
         // Referral Marketing: which visit referrals count as Marketing & Sales (dashboard widget)
         Route::get('/referral-marketing', [\App\Http\Controllers\Admin\ReferralMappingController::class, 'index'])->name('admin.referral_mapping.index');
         Route::post('/referral-marketing', [\App\Http\Controllers\Admin\ReferralMappingController::class, 'update'])->name('admin.referral_mapping.update');

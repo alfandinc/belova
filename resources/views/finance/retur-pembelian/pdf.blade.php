@@ -49,24 +49,13 @@
 <body>
     <div class="header">
         @php
-            $klinikId = $retur->invoice->visitation->klinik_id ?? 2;
-            $logoBase64 = '';
-            switch($klinikId) {
-                case 1:
-                    $logoPath = public_path('img/logo-premiere.png');
-                    break;
-                case 2:
-                    $logoPath = public_path('img/logo-belovaskin.png');
-                    break;
-                default:
-                    $logoPath = public_path('img/logo-belovaskin.png');
-                    break;
-            }
-            if (file_exists($logoPath)) {
-                $imageData = base64_encode(file_get_contents($logoPath));
-                $imageMimeType = mime_content_type($logoPath);
-                $logoBase64 = 'data:' . $imageMimeType . ';base64,' . $imageData;
-            }
+            // Klinik Setting > Kop & Logo PDF, else the built-in logo of the klinik (small cached JPEG); data URI
+            // because the controller's setOptions() resets DomPDF's chroot (file paths would not load)
+            $klinikId = (int) ($retur->invoice->visitation->klinik_id ?? 2);
+            $logoBase64 = \App\Support\PdfLetterhead::dataUri(\App\Support\PdfLetterhead::klinikLogo(
+                $klinikId,
+                [1 => 'img/logo-premiere.png', 3 => 'img/logo-dental.png'][$klinikId] ?? 'img/logo-belovaskin.png'
+            ));
         @endphp
         @if(!empty($logoBase64))
             <img src="{{ $logoBase64 }}" alt="Logo" />

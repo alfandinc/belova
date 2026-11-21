@@ -77,7 +77,8 @@
         <table style="width: 100%; border: none; border-collapse: collapse;">
             <tr>
                 <td style="width: 1px; vertical-align: middle;">
-                    <img src="{{ public_path('img/header-belovacorp.png') }}" alt="Company Logo" style="height: 60px; display: block;">
+                    {{-- company logo: Klinik Setting > Kop Perusahaan, else the built-in one (small cached JPEG) --}}
+                    <img src="{{ \App\Support\PdfLetterhead::perusahaan('img/header-belovacorp.png')['logo'] }}" alt="Company Logo" style="height: 60px; display: block;">
                 </td>
                 <td style="text-align: right; vertical-align: middle;">
                     @php

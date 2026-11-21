@@ -593,6 +593,29 @@ class FinancePengajuanDanaController extends Controller
         } else {
             $query->whereRaw($pendingSql);
         }
+
+        // rows that need action come first (DataTables' own column order is appended after this):
+        // - Menunggu: it is the current user's turn to approve (same rules as approverTurnCheck)
+        // - Disetujui: not (fully) paid yet, so it still needs Bayar
+        if ($approvalStatus === 'approved') {
+            $query->orderByRaw("CASE WHEN COALESCE(finance_pengajuan_dana.payment_status, '') <> 'paid' THEN 0 ELSE 1 END");
+        } elseif (!in_array($approvalStatus, ['declined', 'realisasi'], true)) {
+            $chainOf = function ($a) {
+                return "{$a}.aktif = 1 AND ( TRIM(COALESCE({$a}.jenis, '')) = '' OR TRIM({$a}.jenis) = TRIM(finance_pengajuan_dana.sumber_dana) )";
+            };
+            $lvlOf = function ($a) { return "COALESCE(NULLIF({$a}.tingkat, 0), 1)"; };
+            $levelApproved = function ($a, $lvlExpr) use ($chainOf, $lvlOf) {
+                return "EXISTS (SELECT 1 FROM finance_dana_approver {$a} JOIN finance_pengajuan_dana_approval {$a}ap ON {$a}ap.approver_id = {$a}.id"
+                    . " AND {$a}ap.pengajuan_id = finance_pengajuan_dana.id AND {$a}ap.status = 'approved'"
+                    . " WHERE " . $chainOf($a) . " AND " . $lvlOf($a) . " = {$lvlExpr})";
+            };
+            $myTurnSql = "COALESCE(finance_pengajuan_dana.payment_status, '') <> 'paid' AND EXISTS (SELECT 1 FROM finance_dana_approver me WHERE me.user_id = ? AND " . $chainOf('me')
+                . " AND NOT EXISTS (SELECT 1 FROM finance_pengajuan_dana_approval mea WHERE mea.pengajuan_id = finance_pengajuan_dana.id AND mea.approver_id = me.id)"
+                . " AND NOT " . $levelApproved('f2', $lvlOf('me'))
+                . " AND NOT EXISTS (SELECT 1 FROM finance_dana_approver f3 WHERE " . $chainOf('f3') . " AND " . $lvlOf('f3') . " > " . $lvlOf('me')
+                . " AND NOT " . $levelApproved('f4', $lvlOf('f3')) . "))";
+            $query->orderByRaw("CASE WHEN {$myTurnSql} THEN 0 ELSE 1 END", [(int) (Auth::id() ?? 0)]);
+        }
         // load active approvers once instead of per row
         $activeApprovers = $this->loadActiveApprovers();
         // approval summary per row, shared by the status columns and action buttons (memoized by id)
@@ -1162,19 +1185,9 @@ class FinancePengajuanDanaController extends Controller
                 }
             }
         }
-        // locate a logo asset if present
-        $logoCandidates = [
-            'img/logo-belovacorp.png',
-            'img/logo-belova-klinik.png',
-            'img/logo-belovaskin.png',
-            'img/logo-premiere.png',
-            'img/logo-belovacorp-bw.png'
-        ];
-        $logoPath = null;
-        foreach ($logoCandidates as $c) {
-            $p = public_path($c);
-            if ($p && file_exists($p)) { $logoPath = $p; break; }
-        }
+        // company logo: Klinik Setting > Kop Perusahaan, else the built-in Belova Corp logo, as a small cached JPEG
+        // (the 2000px PNG made this PDF ~1 s slower and ~1 MB bigger)
+        $logoPath = \App\Support\PdfLetterhead::perusahaan()['logo'];
         // build signature QR codes for approvals and creator (tanda tangan)
         $signatures = [];
         try {

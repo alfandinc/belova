@@ -6,6 +6,25 @@
     @include('layouts.admin.navbar')
 @endsection
 
+@section('styles')
+<link rel="stylesheet" href="{{ asset('vendor/cropperjs/cropper.min.css') }}">
+<style>
+    /* crop popup opens on top of the klinik / kop modal */
+    #kopCropModal { z-index: 1065; }
+    #kopCropStage { height: 360px; background: #f1f3f5; }
+    #kopCropStage img { display: block; max-width: 100%; }
+    .kop-a4 { width: 130px; height: 184px; border: 1px solid #ced4da; background: #fff; position: relative; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,.12); }
+    .kop-a4 .kop-a4-top { position: absolute; top: 0; left: 0; width: 100%; }
+    .kop-a4 .kop-a4-bottom { position: absolute; bottom: 0; left: 0; width: 100%; }
+    .kop-a4 .kop-a4-logo { position: absolute; top: 8px; left: 9px; max-width: 46px; max-height: 22px; }
+    .kop-a4 .kop-a4-ikon { position: absolute; top: 8px; left: 9px; width: 14px; height: 14px; }
+    .kop-a4 .kop-a4-lines { position: absolute; left: 9px; right: 9px; top: 46px; }
+    .kop-a4 .kop-a4-lines div { height: 3px; background: #e9ecef; margin-bottom: 5px; border-radius: 2px; }
+    #kopCropInfo.ok { color: #28a745; }
+    #kopCropInfo.bad { color: #dc3545; }
+</style>
+@endsection
+
 @section('content')
 <div class="container">
     <div class="card shadow-sm">
@@ -15,7 +34,10 @@
                     <h3 class="card-title mb-0">Klinik Setting</h3>
                     <small class="text-muted">Data klinik dan konfigurasi integrasi SatuSehat.</small>
                 </div>
-                <button type="button" class="btn btn-primary" id="btnAddKlinik">Tambah Klinik</button>
+                <div>
+                    <button type="button" class="btn btn-outline-primary mr-1" id="btnKopGlobal"><i class="fas fa-file-image mr-1"></i>Kop Perusahaan & Lab</button>
+                    <button type="button" class="btn btn-primary" id="btnAddKlinik">Tambah Klinik</button>
+                </div>
             </div>
 
             <div class="table-responsive">
@@ -145,6 +167,7 @@
                         <li class="nav-item"><a class="nav-link" data-toggle="tab" href="#tabLayanan" role="tab">Layanan</a></li>
                         <li class="nav-item"><a class="nav-link" data-toggle="tab" href="#tabInvoice" role="tab">Invoice</a></li>
                         <li class="nav-item"><a class="nav-link" data-toggle="tab" href="#tabSatusehat" role="tab">SatuSehat <span id="ssTabBadge"></span></a></li>
+                        <li class="nav-item"><a class="nav-link" data-toggle="tab" href="#tabKop" role="tab">Kop & Logo PDF</a></li>
                     </ul>
 
                     <div class="tab-content">
@@ -240,6 +263,12 @@
                                     <input type="text" class="form-control" id="klinikWebsite" name="website" maxlength="255" placeholder="www.contoh.id">
                                 </div>
                             </div>
+                        </div>
+
+                        {{-- Letterhead images of this klinik's PDFs (pdf_kop, Admin\PdfKopController); saved per upload --}}
+                        <div class="tab-pane fade" id="tabKop" role="tabpanel">
+                            <div id="kopKlinikBaru" class="alert alert-secondary py-2 small mb-0" style="display:none;">Simpan klinik terlebih dahulu, lalu buka Edit untuk mengatur kop & logo PDF.</div>
+                            <div id="kopKlinikBox"></div>
                         </div>
 
                         <div class="tab-pane fade" id="tabSatusehat" role="tabpanel">
@@ -340,9 +369,106 @@
         </div>
     </div>
 </div>
+
+{{-- Adjust a letterhead image before upload (Cropper.js): crop within the image's ratio limits or pad it with white --}}
+<div class="modal fade" id="kopCropModal" tabindex="-1" role="dialog" aria-hidden="true" data-backdrop="static">
+    <div class="modal-dialog modal-xl" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Sesuaikan Gambar: <span id="kopCropTitle"></span></h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-lg-9">
+                        <div id="kopCropStage"><img id="kopCropImg" src="" alt=""></div>
+                    </div>
+                    <div class="col-lg-3 mt-3 mt-lg-0">
+                        <label class="small font-weight-bold mb-1">Mode</label>
+                        <div class="custom-control custom-radio">
+                            <input type="radio" class="custom-control-input" id="kopModeCrop" name="kopCropMode" value="crop" checked>
+                            <label class="custom-control-label" for="kopModeCrop">Crop (potong)</label>
+                        </div>
+                        <div class="custom-control custom-radio mb-2">
+                            <input type="radio" class="custom-control-input" id="kopModePad" name="kopCropMode" value="pad">
+                            <label class="custom-control-label" for="kopModePad">Tambah latar putih</label>
+                            <div class="small text-muted">Tidak memotong; ruang putih ditambah sampai rasionya pas.</div>
+                        </div>
+                        <div class="custom-control custom-checkbox mb-2" id="kopLockWrap">
+                            <input type="checkbox" class="custom-control-input" id="kopLockStandar" checked>
+                            <label class="custom-control-label" for="kopLockStandar">Kunci rasio standar <span id="kopStandarText"></span></label>
+                        </div>
+                        <div class="btn-group btn-group-sm mb-3" role="group">
+                            <button type="button" class="btn btn-outline-secondary" id="kopCropFit" title="Pilih area terbesar yang sesuai"><i class="fas fa-expand mr-1"></i>Pas otomatis</button>
+                            <button type="button" class="btn btn-outline-secondary" id="kopCropRotate" title="Putar 90°"><i class="fas fa-redo"></i></button>
+                        </div>
+                        <div class="small text-muted mb-1">Aturan: <span id="kopCropAturan"></span></div>
+                        <div id="kopCropInfo" class="small font-weight-bold mb-3"></div>
+                        <label class="small font-weight-bold mb-1">Pratinjau di kertas A4</label>
+                        <div class="kop-a4" id="kopA4">
+                            <img class="kop-a4-top" id="kopA4Top" alt="">
+                            <img class="kop-a4-logo" id="kopA4Logo" alt="">
+                            <img class="kop-a4-ikon" id="kopA4Ikon" alt="">
+                            <div class="kop-a4-lines"><div></div><div></div><div style="width:70%"></div><div></div><div style="width:85%"></div><div></div><div style="width:60%"></div></div>
+                            <img class="kop-a4-bottom" id="kopA4Bottom" alt="">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                <button type="button" class="btn btn-primary" id="kopCropSave"><i class="fas fa-check mr-1"></i>Simpan & Pakai</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- Company + lab letterheads (not tied to one klinik) --}}
+<div class="modal fade" id="kopGlobalModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Kop Perusahaan & Lab</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+            </div>
+            <div class="modal-body">
+                <ul class="nav nav-tabs mb-3" role="tablist">
+                    <li class="nav-item"><a class="nav-link active" data-toggle="tab" href="#tabKopPerusahaan" role="tab">Perusahaan (Belova Corp)</a></li>
+                    <li class="nav-item"><a class="nav-link" data-toggle="tab" href="#tabKopLab" role="tab">Laboratorium</a></li>
+                </ul>
+                <div class="tab-content">
+                    <div class="tab-pane fade show active" id="tabKopPerusahaan" role="tabpanel">
+                        <form id="kopPerusahaanTeks" class="mb-3">
+                            <div class="form-row">
+                                <div class="form-group col-md-5 mb-2">
+                                    <label class="small mb-1" for="kopPerusahaanNama">Nama perusahaan</label>
+                                    <input type="text" class="form-control form-control-sm" id="kopPerusahaanNama" name="nama" maxlength="255">
+                                </div>
+                                <div class="form-group col-md-7 mb-2">
+                                    <label class="small mb-1" for="kopPerusahaanAlamat">Alamat & kontak <span class="text-muted">(satu baris per baris)</span></label>
+                                    <textarea class="form-control form-control-sm" id="kopPerusahaanAlamat" name="alamat" rows="2" maxlength="1000"></textarea>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-sm btn-primary">Simpan nama & alamat</button>
+                            <small class="text-muted ml-2">Dipakai sebagai teks kop bila perusahaan belum punya banner.</small>
+                        </form>
+                        <div id="kopPerusahaanBox"></div>
+                    </div>
+                    <div class="tab-pane fade" id="tabKopLab" role="tabpanel">
+                        <div id="kopLabBox"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+            </div>
+        </div>
+    </div>
+</div>
 @endsection
 
 @section('scripts')
+<script src="{{ asset('vendor/cropperjs/cropper.min.js') }}"></script>
 <script>
 $(document).ready(function() {
     var baseUrl = '{{ url('/admin/klinik-settings') }}';
@@ -433,6 +559,8 @@ $(document).ready(function() {
         $('.klinik-layanan').prop('checked', true); // new klinik: every layanan
         setSatusehat(null);
         setLocation(null);
+        $('#kopKlinikBox').empty();
+        $('#kopKlinikBaru').show();
     }
 
     function openKlinik(id, tab) {
@@ -457,6 +585,8 @@ $(document).ready(function() {
             });
             setSatusehat(data.satusehat);
             setLocation(data.location);
+            $('#kopKlinikBaru').hide();
+            loadKop($('#kopKlinikBox'), { lingkup: 'klinik', klinik_id: data.id });
             if (tab) $('#klinikModal .nav-tabs a[href="' + tab + '"]').tab('show');
             $('#klinikModalLabel').text('Edit Klinik');
             $('#klinikModal').modal('show');
@@ -504,6 +634,296 @@ $(document).ready(function() {
     $('#ssToggleSecret').on('click', function() {
         var $input = $('#ssClientSecret');
         $input.attr('type', $input.attr('type') === 'password' ? 'text' : 'password');
+    });
+
+    // ---- Kop & Logo PDF (per klinik, perusahaan, lab): every upload is checked + saved at once ----
+    var kopUrls = {
+        show: '{{ route('admin.pdf_kop.show') }}',
+        upload: '{{ route('admin.pdf_kop.upload') }}',
+        hapus: '{{ route('admin.pdf_kop.hapus') }}',
+        teks: '{{ route('admin.pdf_kop.teks') }}',
+        template: '{{ url('/admin/pdf-kop/template') }}'
+    };
+
+    function esc(s) { return $('<div>').text(s == null ? '' : String(s)).html(); }
+
+    function loadKop($box, target) {
+        $box.data('kopTarget', target).html('<div class="text-muted small py-3"><i class="fas fa-spinner fa-spin mr-1"></i>Memuat kop...</div>');
+        $.get(kopUrls.show, target, function(data) {
+            if (target.lingkup === 'perusahaan') {
+                $('#kopPerusahaanNama').val(data.nama).attr('placeholder', data.nama_bawaan);
+                $('#kopPerusahaanAlamat').val(data.alamat);
+            }
+            var html = '';
+            if (!data.tabel_ada) {
+                html += '<div class="alert alert-warning py-2 small">Tabel <code>pdf_kop</code> belum ada (migration belum dijalankan): semua PDF memakai gambar bawaan dan upload belum bisa disimpan.</div>';
+            }
+            html += '<div class="d-flex align-items-center justify-content-between mb-2">'
+                + '<small class="text-muted">Upload langsung tersimpan dan dipakai di PDF berikutnya. Gambar yang kosong memakai gambar bawaan.</small>'
+                + '<a class="btn btn-sm btn-outline-info ml-2 text-nowrap" target="_blank" href="' + esc(data.contoh_url) + '"><i class="fas fa-file-pdf mr-1"></i>Lihat contoh PDF</a></div>';
+            $.each(data.gambar, function(_, g) {
+                var src = g.custom_url || g.bawaan_url;
+                var badge = g.custom_url
+                    ? '<span class="badge badge-success">Custom</span>'
+                    : (g.bawaan_url ? '<span class="badge badge-secondary">Bawaan</span>' : '<span class="badge badge-light border">Belum ada</span>');
+                var tall = (g.key === 'header' || g.key === 'footer');
+                html += '<div class="border rounded p-2 mb-2 kop-item" data-gambar="' + g.key + '">'
+                    + '<div class="d-flex justify-content-between align-items-start">'
+                    +   '<div><strong>' + esc(g.label) + '</strong> ' + badge
+                    +     '<div class="small text-muted">Dipakai di: ' + esc(g.dipakai_di) + '</div>'
+                    +     '<div class="small text-muted"><i class="fas fa-ruler-combined mr-1"></i>' + esc(g.aturan) + '</div></div>'
+                    +   '<div class="text-nowrap ml-2">'
+                    +     '<input type="file" class="d-none kop-file" accept="image/png,image/jpeg">'
+                    +     '<button type="button" class="btn btn-sm btn-primary kop-upload"><i class="fas fa-upload mr-1"></i>Upload</button>'
+                    +     (g.custom_url ? ' <button type="button" class="btn btn-sm btn-outline-danger kop-hapus"><i class="fas fa-undo mr-1"></i>Kembalikan bawaan</button>' : '')
+                    +     (g.template ? ' <a class="btn btn-sm btn-outline-secondary" href="' + kopUrls.template + '/' + g.key + '" title="Template 2000×381 dengan area aman"><i class="fas fa-download mr-1"></i>Template</a>' : '')
+                    +   '</div></div>'
+                    + (src ? '<div class="mt-2 p-1 bg-light border rounded text-center"><img src="' + esc(src) + '" alt="" style="max-width:100%; max-height:' + (tall ? '90' : '70') + 'px;"></div>' : '')
+                    + '</div>';
+            });
+            $box.html(html);
+            var byKey = {};
+            $.each(data.gambar, function(_, g) { byKey[g.key] = g; });
+            $box.data('kopGambar', byKey);
+        }).fail(function(xhr) {
+            $box.html('<div class="alert alert-danger py-2 small">' + errorMessage(xhr, 'Gagal memuat kop.') + '</div>');
+        });
+    }
+
+    $(document).on('click', '.kop-upload', function() {
+        $(this).closest('.kop-item').find('.kop-file').trigger('click');
+    });
+
+    // A chosen file first opens the crop popup; only the adjusted result is uploaded
+    $(document).on('change', '.kop-file', function() {
+        var file = this.files && this.files[0];
+        this.value = '';
+        if (!file) return;
+        if (['image/png', 'image/jpeg'].indexOf(file.type) === -1) {
+            Swal.fire({ icon: 'error', title: 'Format tidak didukung', text: 'Gunakan PNG atau JPG (bukan SVG, WebP, atau PDF).' });
+            return;
+        }
+        var $item = $(this).closest('.kop-item');
+        var $box = $item.parent();
+        openCrop($box, $box.data('kopGambar')[$item.data('gambar')], file);
+    });
+
+    function uploadKop($box, gambar, blob, fileName, onDone) {
+        var fd = new FormData();
+        $.each($box.data('kopTarget'), function(k, v) { fd.append(k, v); });
+        fd.append('gambar', gambar);
+        fd.append('file', blob, fileName);
+        Swal.fire({ title: 'Memeriksa & memproses gambar...', allowOutsideClick: false, didOpen: function() { Swal.showLoading(); } });
+        $.ajax({ url: kopUrls.upload, type: 'POST', data: fd, processData: false, contentType: false })
+            .done(function(res) {
+                Swal.fire({ icon: 'success', title: 'Tersimpan', text: res.message, timer: 1800, showConfirmButton: false });
+                if (onDone) onDone();
+                loadKop($box, $box.data('kopTarget'));
+            })
+            .fail(function(xhr) {
+                Swal.fire({ icon: 'error', title: 'Gambar ditolak', html: errorMessage(xhr, 'Upload gagal.') });
+            });
+    }
+
+    // ---- crop popup (Cropper.js): crop box kept inside the image's ratio limits, or pad with white ----
+    var kc = { cropper: null, g: null, $box: null, url: null, clamping: false, timer: null, canvas: null };
+    // largest side sent to the server (it makes the small PDF JPEG from this anyway)
+    var kopCap = { header: 2400, footer: 2400, logo: 1500, ikon: 512 };
+
+    function fmtRatio(n) { return (Math.round(n * 10) / 10).toString().replace('.', ','); }
+    function kopMode() { return $('input[name="kopCropMode"]:checked').val(); }
+
+    // the ratio the crop box is locked to (NaN = free, kept inside the limits by clampRatio)
+    function kopAspect() {
+        if (kopMode() === 'pad') return NaN;
+        if (kc.g.key === 'ikon') return 1;
+        if (kc.g.key === 'header' && $('#kopLockStandar').is(':checked')) return kc.g.rules.standar;
+        return NaN;
+    }
+
+    // ratio the padded output gets: the locked one, else the selection's own ratio pulled into the limits
+    function kopPadTarget(r) {
+        if (kc.g.key === 'ikon') return 1;
+        if (kc.g.key === 'header' && $('#kopLockStandar').is(':checked')) return kc.g.rules.standar;
+        return Math.min(Math.max(r, kc.g.rules.ratio[0]), kc.g.rules.ratio[1]);
+    }
+
+    function openCrop($box, g, file) {
+        kc.g = g;
+        kc.$box = $box;
+        if (kc.url) URL.revokeObjectURL(kc.url);
+        kc.url = URL.createObjectURL(file);
+        $('#kopCropTitle').text(g.label);
+        $('#kopCropAturan').text(g.aturan);
+        $('#kopModeCrop').prop('checked', true);
+        $('#kopLockStandar').prop('checked', true);
+        $('#kopLockWrap').toggle(g.key === 'header');
+        $('#kopStandarText').text(g.key === 'header' ? '(2000×381)' : '');
+        $('#kopCropInfo').text('').removeClass('ok bad');
+        $('#kopA4 img').hide();
+        $('#kopCropImg').attr('src', kc.url);
+        $('#kopCropModal').modal('show');
+    }
+
+    function initCropper() {
+        if (kc.cropper) kc.cropper.destroy();
+        kc.cropper = new Cropper(document.getElementById('kopCropImg'), {
+            viewMode: 1,
+            autoCropArea: 1,
+            dragMode: 'move',
+            background: false,
+            aspectRatio: kopAspect(),
+            ready: function() { kopUpdateSoon(); },
+            crop: function(e) { clampRatio(e.detail); kopUpdateSoon(); }
+        });
+    }
+
+    // free crop: never let the box leave the accepted ratio (shrinking a side always fits inside the image)
+    function clampRatio(d) {
+        if (!kc.cropper || kc.clamping || kopMode() === 'pad' || !isNaN(kopAspect()) || !d.width || !d.height) return;
+        var r = d.width / d.height, min = kc.g.rules.ratio[0], max = kc.g.rules.ratio[1];
+        if (r >= min && r <= max) return;
+        kc.clamping = true;
+        kc.cropper.setData(r < min ? { height: d.width / min } : { width: d.height * max });
+        kc.clamping = false;
+    }
+
+    function kopUpdateSoon() {
+        clearTimeout(kc.timer);
+        kc.timer = setTimeout(kopUpdate, 150);
+    }
+
+    // build the output canvas (crop / pad), check it against the rules, refresh the A4 preview
+    function kopUpdate() {
+        if (!kc.cropper) return;
+        var cap = kopCap[kc.g.key];
+        var c = kc.cropper.getCroppedCanvas({ maxWidth: cap, maxHeight: cap, imageSmoothingQuality: 'high' });
+        if (!c || !c.width) return;
+        if (kopMode() === 'pad') {
+            var r = c.width / c.height, t = kopPadTarget(r);
+            if (Math.abs(r - t) > 0.001) {
+                var W = r < t ? Math.round(c.height * t) : c.width;
+                var H = r < t ? c.height : Math.round(c.width / t);
+                var p = document.createElement('canvas');
+                p.width = W; p.height = H;
+                var ctx = p.getContext('2d');
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, W, H);
+                ctx.drawImage(c, Math.round((W - c.width) / 2), Math.round((H - c.height) / 2));
+                c = p;
+            }
+        }
+        kc.canvas = c;
+
+        var rules = kc.g.rules, w = c.width, h = c.height, ratio = w / h, errors = [];
+        if (rules.min_w && w < rules.min_w) errors.push('lebar ' + w + ' px, minimal ' + rules.min_w + ' px');
+        if (rules.min_h && h < rules.min_h) errors.push('tinggi ' + h + ' px, minimal ' + rules.min_h + ' px');
+        if (rules.min_long && Math.max(w, h) < rules.min_long) errors.push('sisi terpanjang ' + Math.max(w, h) + ' px, minimal ' + rules.min_long + ' px');
+        if (ratio < rules.ratio[0] - 0.01 || ratio > rules.ratio[1] + 0.01) errors.push('rasio ' + fmtRatio(ratio) + ':1, harus ' + fmtRatio(rules.ratio[0]) + ':1 – ' + fmtRatio(rules.ratio[1]) + ':1');
+        var size = 'Hasil: ' + w + ' × ' + h + ' px';
+        if (errors.length) {
+            $('#kopCropInfo').removeClass('ok').addClass('bad').html(esc(size) + '<br>✘ ' + errors.map(esc).join('<br>✘ ')
+                + (errors.some(function(e) { return e.indexOf('minimal') !== -1; }) ? '<br><span class="font-weight-normal">Resolusi terlalu kecil, akan pecah saat dicetak. Perbesar area pilihan atau gunakan file yang lebih besar.</span>' : ''));
+        } else {
+            $('#kopCropInfo').removeClass('bad').addClass('ok').text(size + '  ✔ sesuai aturan');
+        }
+        $('#kopCropSave').prop('disabled', errors.length > 0);
+
+        // small JPEG for the A4 mock-up
+        var s = document.createElement('canvas'), sw = Math.min(260, w);
+        s.width = sw; s.height = Math.max(1, Math.round(h * sw / w));
+        var sctx = s.getContext('2d');
+        sctx.fillStyle = '#ffffff';
+        sctx.fillRect(0, 0, s.width, s.height);
+        sctx.drawImage(c, 0, 0, s.width, s.height);
+        var target = { header: '#kopA4Top', footer: '#kopA4Bottom', logo: '#kopA4Logo', ikon: '#kopA4Ikon' }[kc.g.key];
+        $('#kopA4 img').hide();
+        $(target).attr('src', s.toDataURL('image/jpeg', 0.8)).show();
+    }
+
+    $('#kopCropModal').on('shown.bs.modal', function() {
+        // stacked on top of another modal: lift its backdrop above that modal
+        $('.modal-backdrop').last().css('z-index', 1060);
+        initCropper();
+    }).on('hidden.bs.modal', function() {
+        if (kc.cropper) { kc.cropper.destroy(); kc.cropper = null; }
+        if (kc.url) { URL.revokeObjectURL(kc.url); kc.url = null; }
+        kc.canvas = null;
+        if ($('.modal.show').length) $('body').addClass('modal-open'); // keep the modal below scrollable
+    });
+
+    $('input[name="kopCropMode"], #kopLockStandar').on('change', function() {
+        if (!kc.cropper) return;
+        kc.cropper.setAspectRatio(kopAspect());
+        kopUpdateSoon();
+    });
+
+    $('#kopCropFit').on('click', function() {
+        if (!kc.cropper) return;
+        kc.cropper.reset();
+        kc.cropper.setAspectRatio(kopAspect());
+        kopUpdateSoon();
+    });
+
+    $('#kopCropRotate').on('click', function() {
+        if (!kc.cropper) return;
+        kc.cropper.rotate(90);
+        kopUpdateSoon();
+    });
+
+    $('#kopCropSave').on('click', function() {
+        clearTimeout(kc.timer);
+        kopUpdate();
+        if (!kc.canvas || $(this).prop('disabled')) return;
+        var g = kc.g, $box = kc.$box, canvas = kc.canvas, maxBytes = g.rules.max_kb * 1024;
+        canvas.toBlob(function(png) {
+            var send = function(blob, name) {
+                uploadKop($box, g.key, blob, name, function() { $('#kopCropModal').modal('hide'); });
+            };
+            if (png && png.size <= maxBytes) {
+                send(png, 'kop-' + g.key + '.png');
+                return;
+            }
+            // PNG too big for the limit: JPEG on white instead
+            var j = document.createElement('canvas');
+            j.width = canvas.width; j.height = canvas.height;
+            var ctx = j.getContext('2d');
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, j.width, j.height);
+            ctx.drawImage(canvas, 0, 0);
+            j.toBlob(function(jpg) { send(jpg, 'kop-' + g.key + '.jpg'); }, 'image/jpeg', 0.92);
+        }, 'image/png');
+    });
+
+    $(document).on('click', '.kop-hapus', function() {
+        var $item = $(this).closest('.kop-item');
+        var $box = $item.parent();
+        Swal.fire({
+            icon: 'question', title: 'Kembalikan ke gambar bawaan?',
+            text: 'Gambar custom dihapus; PDF berikutnya memakai gambar bawaan.',
+            showCancelButton: true, confirmButtonText: 'Ya, kembalikan', cancelButtonText: 'Batal'
+        }).then(function(r) {
+            if (!r.isConfirmed) return;
+            $.post(kopUrls.hapus, $.extend({ gambar: $item.data('gambar') }, $box.data('kopTarget')))
+                .done(function(res) {
+                    Swal.fire({ icon: 'success', title: res.message, timer: 1500, showConfirmButton: false });
+                    loadKop($box, $box.data('kopTarget'));
+                })
+                .fail(function(xhr) { Swal.fire({ icon: 'error', title: 'Gagal', html: errorMessage(xhr) }); });
+        });
+    });
+
+    $('#kopPerusahaanTeks').on('submit', function(e) {
+        e.preventDefault();
+        $.post(kopUrls.teks, $(this).serialize())
+            .done(function(res) { Swal.fire({ icon: 'success', title: res.message, timer: 1500, showConfirmButton: false }); })
+            .fail(function(xhr) { Swal.fire({ icon: 'error', title: 'Gagal', html: errorMessage(xhr) }); });
+    });
+
+    $('#btnKopGlobal').on('click', function() {
+        loadKop($('#kopPerusahaanBox'), { lingkup: 'perusahaan' });
+        loadKop($('#kopLabBox'), { lingkup: 'lab' });
+        $('#kopGlobalModal').modal('show');
     });
 
     $('#btnAddKlinik').on('click', function() {

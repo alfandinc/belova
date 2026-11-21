@@ -990,28 +990,8 @@ class ElabController extends Controller
                 'umurPasien' => $umurPasien,
                 'tanggalSekarang' => $tanggalSekarang
             ])->render();
-            // === mPDF ===
-            $headerImg = public_path('img/lab_header.png');
-            $footerImg = public_path('img/lab_footer.png');
-            $mpdf = new \Mpdf\Mpdf([
-                'format' => 'A4',
-                'margin_top' => 40, // 40mm for header image
-                'margin_bottom' => 40, // 40mm for footer image
-                'margin_left' => 10, // margin konten
-                'margin_right' => 10, // margin konten
-            ]);
-            // Set header image benar-benar mepet tepi kertas
-            if (file_exists($headerImg)) {
-                $headerHtml = '<div style="position:absolute;left:0;top:0;width:210mm;height:40mm;margin:0;padding:0;"><img src="' . $headerImg . '" style="width:210mm;height:40mm;object-fit:cover;display:block;margin:0;padding:0;"></div>';
-                $mpdf->SetHTMLHeader($headerHtml, 'O', true);
-                $mpdf->SetHTMLHeader($headerHtml, 'E', true);
-            }
-            // Set footer image benar-benar mepet tepi bawah, kanan, kiri (40mm height)
-            if (file_exists($footerImg)) {
-                $footerHtml = '<div style="position:absolute;left:0;bottom:0;width:210mm;height:40mm;margin:0;padding:0;"><img src="' . $footerImg . '" style="width:210mm;height:40mm;object-fit:cover;display:block;margin:0;padding:0;"></div>';
-                $mpdf->SetHTMLFooter($footerHtml, 'O', true);
-                $mpdf->SetHTMLFooter($footerHtml, 'E', true);
-            }
+            // === mPDF === (footer as tall as its artwork: the content stops above it)
+            $mpdf = $this->labMpdf(null);
             $mpdf->WriteHTML($html);
             $filename = 'Hasil_Lab_' . $visitation->pasien->no_rekam_medis . '_' . date('dmY') . '.pdf';
             return response($mpdf->Output($filename, 'S'))
@@ -1100,8 +1080,6 @@ class ElabController extends Controller
                     'flag' => $item->flag
                 ];
             }
-            $headerImg = public_path('img/lab_header.png');
-            $footerImg = public_path('img/lab_footer.png');
             // Diagnosa kerja dari asesmen penunjang terbaru
             $latestPenunjang = \App\Models\ERM\AsesmenPenunjang::whereHas('visitation', function($query) use ($pasienId) {
                 $query->where('pasien_id', $pasienId);
@@ -1161,26 +1139,8 @@ class ElabController extends Controller
                 'umurPasien' => $umurPasien,
                 'tanggalSekarang' => $tanggalSekarang
             ])->render();
-            // === mPDF ===
-            $mpdf = new \Mpdf\Mpdf([
-                'format' => 'A4',
-                'margin_top' => 40, // 40mm for header image
-                'margin_bottom' => 20, // 20mm for footer image
-                'margin_left' => 10, // margin konten
-                'margin_right' => 10, // margin konten
-            ]);
-            // Set header image benar-benar mepet tepi kertas
-            if (file_exists($headerImg)) {
-                $headerHtml = '<div style="position:absolute;left:0;top:0;width:210mm;height:40mm;margin:0;padding:0;"><img src="' . $headerImg . '" style="width:210mm;height:40mm;object-fit:cover;display:block;margin:0;padding:0;"></div>';
-                $mpdf->SetHTMLHeader($headerHtml, 'O', true);
-                $mpdf->SetHTMLHeader($headerHtml, 'E', true);
-            }
-            // Set footer image benar-benar mepet tepi bawah, kanan, kiri (40mm height)
-            if (file_exists($footerImg)) {
-                $footerHtml = '<div style="position:absolute;left:0;bottom:0;width:210mm;height:40mm;margin:0;padding:0;"><img src="' . $footerImg . '" style="width:210mm;height:40mm;object-fit:cover;display:block;margin:0;padding:0;"></div>';
-                $mpdf->SetHTMLFooter($footerHtml, 'O', true);
-                $mpdf->SetHTMLFooter($footerHtml, 'E', true);
-            }
+            // === mPDF === (20mm bottom margin as before: the lower part of the footer artwork is its wave)
+            $mpdf = $this->labMpdf(20);
             $mpdf->WriteHTML($html);
             $filename = 'Monitoring_Lab_' . $pasien->id . '_' . date('dmY') . '.pdf';
             return response($mpdf->Output($filename, 'S'))
@@ -1192,5 +1152,43 @@ class ElabController extends Controller
                 'message' => 'Error generating PDF: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * mPDF for the lab PDFs with the lab letterhead (Klinik Setting > Kop Perusahaan & Lab, else the built-in
+     * artwork) drawn edge to edge on every page. Images are small JPEGs (PdfLetterhead), and the header / footer
+     * are as tall as their artwork (40 mm for the built-in 2000x381 banners).
+     * $marginBottom: content bottom margin in mm; null = the footer height.
+     */
+    private function labMpdf(?float $marginBottom): \Mpdf\Mpdf
+    {
+        $kop = \App\Support\PdfLetterhead::lab();
+        $headerH = $kop['header']['height_mm'] ?? 0;
+        $footerH = $kop['footer']['height_mm'] ?? 0;
+
+        $mpdf = new \Mpdf\Mpdf([
+            'format' => 'A4',
+            'margin_top' => $headerH ?: 15,
+            'margin_bottom' => $marginBottom ?? ($footerH ?: 15),
+            'margin_left' => 10,
+            'margin_right' => 10,
+        ]);
+        foreach (['header' => 'top', 'footer' => 'bottom'] as $part => $edge) {
+            if (empty($kop[$part])) {
+                continue;
+            }
+            $h = $kop[$part]['height_mm'];
+            $html = '<div style="position:absolute;left:0;' . $edge . ':0;width:210mm;height:' . $h . 'mm;margin:0;padding:0;">'
+                . '<img src="' . $kop[$part]['path'] . '" style="width:210mm;height:' . $h . 'mm;display:block;margin:0;padding:0;"></div>';
+            if ($part === 'header') {
+                $mpdf->SetHTMLHeader($html, 'O', true);
+                $mpdf->SetHTMLHeader($html, 'E', true);
+            } else {
+                $mpdf->SetHTMLFooter($html, 'O', true);
+                $mpdf->SetHTMLFooter($html, 'E', true);
+            }
+        }
+
+        return $mpdf;
     }
 }

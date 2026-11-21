@@ -14,7 +14,8 @@
 	<table style="width:100%; border:none; margin-bottom: 10px;">
 		<tr>
 			<td style="width:60px; border:none; vertical-align:top;">
-				<img src="{{ public_path('img/header-belova.png') }}" alt="Logo" style="height:80px;">
+				{{-- issued by Belova Skin (see the text on the right): its logo from Klinik Setting > Kop & Logo PDF, else the built-in one --}}
+				<img src="{{ \App\Support\PdfLetterhead::klinikLogo(2, 'img/header-belova.png') }}" alt="Logo" style="height:80px;">
 			</td>
 			<td style="text-align:right; border:none; vertical-align:top;">
 				<div style="text-align:right;">

@@ -245,27 +245,9 @@ class MemorandumController extends Controller
     {
         $memorandum->load(['division','klinik','user']);
 
-        // Resolve clinic header image (premiere-header or belova-header) and embed as base64
-        $clinicName = $memorandum->klinik->nama ?? '';
-        $headerPath = public_path('img/belova-header.png');
-        if (stripos($clinicName, 'Premiere') !== false) {
-            $headerPath = public_path('img/premiere-header.png');
-        } else {
-            // Default to Belova Skin header if clinic contains Skin; else Belova Corp header
-            if (stripos($clinicName, 'Skin') !== false) {
-                $headerPath = public_path('img/belova-header.png');
-            } elseif (file_exists(public_path('img/header-belovacorp.png'))) {
-                $headerPath = public_path('img/header-belovacorp.png');
-            }
-        }
-        $headerBase64 = '';
-        try {
-            if (file_exists($headerPath)) {
-                $headerBase64 = 'data:image/'.pathinfo($headerPath, PATHINFO_EXTENSION).';base64,'.base64_encode(file_get_contents($headerPath));
-            }
-        } catch (\Throwable $e) {
-            $headerBase64 = '';
-        }
+        // klinik banner, else company banner / Belova Corp logo (Klinik Setting > Kop & Logo PDF), as a small JPEG
+        // (data URI: setOptions() below resets DomPDF's chroot, so a file path would not load)
+        $headerBase64 = \App\Support\PdfLetterhead::dataUri(\App\Support\PdfLetterhead::workdocHeader($memorandum->klinik));
 
         $pdf = Pdf::setOptions([
                 'isRemoteEnabled' => false,

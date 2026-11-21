@@ -90,10 +90,16 @@
     </td>
     <td class="header-logo-cell">
       {{-- As a small JPEG made once (App\Support\PdfLetterhead): DomPDF needs ~1 s for these PNGs with transparency --}}
-      @if(isset($klinik_id) && $klinik_id == 1)
-        <img src="{{ \App\Support\PdfLetterhead::logo('img/header-premiere.png', 800) }}" alt="Logo Premiere" class="header-logo">
-      @elseif(isset($klinik_id) && $klinik_id == 2)
-        <img src="{{ \App\Support\PdfLetterhead::logo('img/header-belova.png', 800) }}" alt="Logo Belova" class="header-logo">
+      {{-- Klinik Setting > Kop & Logo PDF, else the built-in logo of the klinik --}}
+      @php
+        $icLogo = isset($klinik_id) ? \App\Support\PdfLetterhead::klinikLogo(
+            $klinik_id,
+            [1 => 'img/header-premiere.png', 2 => 'img/header-belova.png', 3 => 'img/logo-dental.png'][(int) $klinik_id] ?? null,
+            800
+        ) : null;
+      @endphp
+      @if($icLogo)
+        <img src="{{ $icLogo }}" alt="Logo" class="header-logo">
       @endif
     </td>
   </tr>
