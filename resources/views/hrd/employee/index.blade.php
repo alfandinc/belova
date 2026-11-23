@@ -1394,6 +1394,7 @@ $(function() {
         $.ajax({
             url: $form.data('url'),
             type: 'POST',
+            headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
             data: new FormData($form[0]),
             processData: false,
             contentType: false,
