@@ -7,7 +7,9 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class PengajuanLibur extends Model
 {
-    use HasFactory;
+    use HasFactory, Concerns\HasPersetujuanAtasan;
+
+    public const JENIS_PERSETUJUAN = 'libur';
 
     protected $table = 'hrd_pengajuan_libur';
 

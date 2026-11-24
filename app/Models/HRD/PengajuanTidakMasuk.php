@@ -7,7 +7,9 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class PengajuanTidakMasuk extends Model
 {
-    use HasFactory;
+    use HasFactory, Concerns\HasPersetujuanAtasan;
+
+    public const JENIS_PERSETUJUAN = 'tidak_masuk';
 
     protected $table = 'hrd_pengajuan_tidak_masuk';
 

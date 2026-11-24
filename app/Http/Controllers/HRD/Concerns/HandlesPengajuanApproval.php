@@ -117,7 +117,122 @@ trait HandlesPengajuanApproval
             return '<span class="badge badge-danger">Ditolak Manager</span>';
         }
 
+        $sudah = $this->approvedAtasanNames($row);
+        if ($sudah) {
+            return '<span class="badge badge-secondary">Menunggu Persetujuan</span>'
+                . '<div class="small text-muted mt-1">Menunggu atasan lain</div>'
+                . '<div class="small text-success"><i class="fas fa-check mr-1"></i>' . e(implode(', ', $sudah)) . '</div>';
+        }
+
         return '<span class="badge badge-secondary">Menunggu Persetujuan</span><div class="small text-muted mt-1">Menunggu Manager</div>';
+    }
+
+    /**
+     * Number of direct-superior approvals a request needs: 1 superior -> 1, 2 or more -> 2.
+     */
+    protected function requiredManagerApprovals(?Employee $requester): int
+    {
+        if (!$requester) {
+            return 1;
+        }
+
+        return max(1, min(2, count($this->getDirectManagerEmployeeIds($requester))));
+    }
+
+    /**
+     * Names of the superiors who already approved (only when the persetujuanAtasan relation is loaded).
+     */
+    protected function approvedAtasanNames($row): array
+    {
+        if (!method_exists($row, 'persetujuanAtasan') || !$row->relationLoaded('persetujuanAtasan')) {
+            return [];
+        }
+
+        return $row->persetujuanAtasan
+            ->where('status', 'disetujui')
+            ->map(fn($p) => $p->approver->nama ?? '-')
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Whether this superior already gave a decision on the request.
+     */
+    protected function sudahDiputuskanAtasan($row, ?Employee $approver): bool
+    {
+        if (!$approver || !method_exists($row, 'persetujuanAtasan')) {
+            return false;
+        }
+        $items = $row->relationLoaded('persetujuanAtasan') ? $row->persetujuanAtasan : $row->persetujuanAtasan()->get();
+
+        return $items->contains('approver_employee_id', $approver->id);
+    }
+
+    /**
+     * Limit a query to requests this superior has not decided yet.
+     */
+    protected function belumDiputuskanOleh($query, ?Employee $approver)
+    {
+        if (!$approver) {
+            return $query;
+        }
+
+        return $query->whereDoesntHave('persetujuanAtasan', function ($q) use ($approver) {
+            $q->where('approver_employee_id', $approver->id);
+        });
+    }
+
+    /**
+     * Record one superior's decision and work out the manager-step attributes. One rejection rejects
+     * the request; it is approved once the required number of superiors approved; otherwise it keeps
+     * waiting (status_manager stays 'menunggu'). Call inside a transaction with the row locked.
+     *
+     * @return array{attrs: array, final: bool, approved: int, required: int}
+     * @throws \DomainException
+     */
+    protected function recordAtasanDecision($pengajuan, Employee $approver, string $status, ?string $notes): array
+    {
+        if ($this->sudahDiputuskanAtasan($pengajuan, $approver)) {
+            throw new \DomainException('Anda sudah memberikan persetujuan untuk pengajuan ini. Menunggu persetujuan atasan lain.');
+        }
+
+        $pengajuan->persetujuanAtasan()->create([
+            'jenis' => $pengajuan::JENIS_PERSETUJUAN,
+            'approver_employee_id' => $approver->id,
+            'status' => $status,
+            'notes' => $notes,
+        ]);
+
+        $required = $this->requiredManagerApprovals($pengajuan->employee);
+        $items = $pengajuan->persetujuanAtasan()->with('approver')->get();
+        $approved = $items->where('status', 'disetujui')->count();
+
+        // One superior: keep the plain comment. Several: prefix each comment with the superior's name.
+        if ($required === 1 && $items->count() === 1) {
+            $summary = $notes;
+        } else {
+            $summary = $items->map(function ($p) {
+                $label = ($p->approver->nama ?? '-') . ' (' . ($p->status === 'ditolak' ? 'menolak' : 'setuju') . ')';
+
+                return $p->notes ? $label . ': ' . $p->notes : $label;
+            })->implode('; ');
+        }
+
+        if ($status === 'ditolak') {
+            $attrs = ['status_manager' => 'ditolak', 'notes_manager' => $summary, 'tanggal_persetujuan_manager' => now()];
+        } elseif ($approved >= $required) {
+            $attrs = ['status_manager' => 'disetujui', 'notes_manager' => $summary, 'tanggal_persetujuan_manager' => now()];
+        } else {
+            $attrs = ['notes_manager' => $summary];
+        }
+
+        return ['attrs' => $attrs, 'final' => isset($attrs['status_manager']), 'approved' => $approved, 'required' => $required];
+    }
+
+    protected function waitingOtherAtasanMessage(array $decision): string
+    {
+        return 'Persetujuan Anda tercatat (' . $decision['approved'] . ' dari ' . $decision['required']
+            . ' atasan). Menunggu persetujuan atasan lain sebelum diteruskan ke HRD.';
     }
 
     protected function renderCatatan($row): string

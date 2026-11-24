@@ -5,9 +5,11 @@ namespace App\Http\Controllers\HRD;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\HRD\Concerns\HandlesPengajuanApproval;
 use App\Http\Controllers\HRD\Concerns\ResolvesDirectManagerApprovals;
+use App\Models\HRD\Employee;
 use App\Models\HRD\PengajuanLembur;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Yajra\DataTables\Facades\DataTables;
 
 class PengajuanLemburController extends Controller
@@ -23,11 +25,12 @@ class PengajuanLemburController extends Controller
     /**
      * Restrict a query to rows that are waiting for the given approver.
      */
-    private function applyNeedsMyAction($query, bool $isHrd, array $subordinateIds)
+    private function applyNeedsMyAction($query, bool $isHrd, array $subordinateIds, ?Employee $me = null)
     {
-        return $query->where(function ($q) use ($isHrd, $subordinateIds) {
-            $q->where(function ($q) use ($subordinateIds) {
+        return $query->where(function ($q) use ($isHrd, $subordinateIds, $me) {
+            $q->where(function ($q) use ($subordinateIds, $me) {
                 $q->where('status_manager', 'menunggu')->whereIn('employee_id', $subordinateIds);
+                $this->belumDiputuskanOleh($q, $me);
             });
             if ($isHrd) {
                 $q->orWhere(function ($q) {
@@ -50,7 +53,7 @@ class PengajuanLemburController extends Controller
                 return DataTables::of(collect())->make(true);
             }
 
-            $query = PengajuanLembur::with('employee');
+            $query = PengajuanLembur::with(['employee', 'persetujuanAtasan.approver']);
 
             // HRD/Admin see everything; others see their own + direct subordinates
             if (!$isHrd) {
@@ -58,17 +61,18 @@ class PengajuanLemburController extends Controller
             }
 
             // Date-filtered rows, plus anything still waiting for this user's approval
-            $query->where(function ($q) use ($filterStart, $filterEnd, $isHrd, $subordinateIds) {
+            $query->where(function ($q) use ($filterStart, $filterEnd, $isHrd, $subordinateIds, $employee) {
                 $q->where(function ($q) use ($filterStart, $filterEnd) {
                     $q->whereDate('tanggal', '>=', $filterStart)->whereDate('tanggal', '<=', $filterEnd);
                 });
-                $q->orWhere(function ($q) use ($isHrd, $subordinateIds) {
-                    $this->applyNeedsMyAction($q, $isHrd, $subordinateIds);
+                $q->orWhere(function ($q) use ($isHrd, $subordinateIds, $employee) {
+                    $this->applyNeedsMyAction($q, $isHrd, $subordinateIds, $employee);
                 });
             });
 
-            $canManagerApprove = function ($row) use ($subordinateIds) {
-                return $row->status_manager === 'menunggu' && in_array($row->employee_id, $subordinateIds);
+            $canManagerApprove = function ($row) use ($subordinateIds, $employee) {
+                return $row->status_manager === 'menunggu' && in_array($row->employee_id, $subordinateIds)
+                    && !$this->sudahDiputuskanAtasan($row, $employee);
             };
             $canHrdApprove = function ($row) use ($isHrd) {
                 return $isHrd && $row->status_manager === 'disetujui' && $row->status_hrd === 'menunggu';
@@ -139,7 +143,7 @@ class PengajuanLemburController extends Controller
 
         $pendingCount = 0;
         if ($isHrd || !empty($subordinateIds)) {
-            $pendingCount = $this->applyNeedsMyAction(PengajuanLembur::query(), $isHrd, $subordinateIds)->count();
+            $pendingCount = $this->applyNeedsMyAction(PengajuanLembur::query(), $isHrd, $subordinateIds, $employee)->count();
         }
 
         return view('hrd.lembur.index', [
@@ -196,21 +200,57 @@ class PengajuanLemburController extends Controller
             'komentar_manager' => 'nullable|string|max:1000',
             'status' => 'required|in:disetujui,ditolak',
         ], $this->partialApprovalRules(true)));
+        $me = Auth::user()->employee;
         $pengajuan = PengajuanLembur::findOrFail($id);
 
-        if (!Auth::user()->employee || !$this->canApproveAsDirectManager(Auth::user()->employee, $pengajuan->employee)) {
+        if (!$me || !$this->canApproveAsDirectManager($me, $pengajuan->employee)) {
             return $this->forbiddenResponse($request, 'Anda bukan atasan langsung untuk pengajuan ini.');
         }
 
-        if ($pengajuan->status_manager !== 'menunggu') {
-            return $this->errorResponse($request, 'Pengajuan ini sudah diproses pada approval tingkat 1.');
+        $message = '';
+        try {
+            $pengajuan = DB::transaction(function () use ($request, $id, $me, &$message) {
+                $pengajuan = PengajuanLembur::with('employee')->lockForUpdate()->findOrFail($id);
+
+                if ($pengajuan->status_manager !== 'menunggu') {
+                    throw new \DomainException('Pengajuan ini sudah diproses pada approval tingkat 1.');
+                }
+
+                $before = $pengajuan->total_jam_formatted;
+                $adjust = $this->buildTimeAdjustment($pengajuan, $request);
+                // With 2+ superiors the request stays 'menunggu' until enough of them approved
+                $decision = $this->recordAtasanDecision($pengajuan, $me, $request->status, $request->komentar_manager);
+
+                // Model recomputes total_jam from the (possibly reduced) jam_mulai/jam_selesai on save
+                $pengajuan->update(array_merge($decision['attrs'], $adjust));
+
+                $message = $this->lemburApprovalMessage($request, $adjust, $pengajuan, $before);
+                if (!$decision['final']) {
+                    $message = ($adjust ? $message . ' ' : '') . $this->waitingOtherAtasanMessage($decision);
+                }
+
+                return $pengajuan;
+            });
+        } catch (\DomainException $e) {
+            return $this->errorResponse($request, $e->getMessage());
         }
 
-        return $this->applyApproval($request, $pengajuan, [
-            'status_manager' => $request->status,
-            'notes_manager' => $request->komentar_manager,
-            'tanggal_persetujuan_manager' => now(),
-        ]);
+        if ($request->ajax()) {
+            return response()->json(['success' => true, 'message' => $message, 'data' => $pengajuan]);
+        }
+        return redirect()->route('hrd.lembur.index')->with('success', $message);
+    }
+
+    private function lemburApprovalMessage(Request $request, array $adjust, PengajuanLembur $pengajuan, $before): string
+    {
+        if ($request->status !== 'disetujui') {
+            return 'Pengajuan lembur ditolak.';
+        }
+        if ($adjust) {
+            return 'Disetujui sebagian: ' . $pengajuan->total_jam_formatted . ' dari ' . $before . '.';
+        }
+
+        return 'Pengajuan lembur disetujui.';
     }
 
     public function persetujuanHRD(Request $request, $id)
@@ -257,13 +297,7 @@ class PengajuanLemburController extends Controller
         // Model recomputes total_jam from the (possibly reduced) jam_mulai/jam_selesai on save
         $pengajuan->update(array_merge($statusAttrs, $adjust));
 
-        if ($request->status !== 'disetujui') {
-            $message = 'Pengajuan lembur ditolak.';
-        } elseif ($adjust) {
-            $message = 'Disetujui sebagian: ' . $pengajuan->total_jam_formatted . ' dari ' . $before . '.';
-        } else {
-            $message = 'Pengajuan lembur disetujui.';
-        }
+        $message = $this->lemburApprovalMessage($request, $adjust, $pengajuan, $before);
 
         if ($request->ajax()) {
             return response()->json(['success' => true, 'message' => $message, 'data' => $pengajuan]);

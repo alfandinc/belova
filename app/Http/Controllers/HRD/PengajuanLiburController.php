@@ -193,8 +193,8 @@ class PengajuanLiburController extends Controller
                             $this->overlapFilter($q, $filterStart, $filterEnd);
                         })->orWhere('status_manager', 'menunggu');
                     });
-                $needsAction = function ($row) {
-                    return $row->status_manager === 'menunggu';
+                $needsAction = function ($row) use ($employee) {
+                    return $row->status_manager === 'menunggu' && !$this->sudahDiputuskanAtasan($row, $employee);
                 };
             } elseif ($viewType === 'approval' && $isHrd) {
                 // Manager-approved requests in range, plus anything still waiting for HRD
@@ -211,7 +211,7 @@ class PengajuanLiburController extends Controller
                 return DataTables::of(collect())->make(true);
             }
 
-            $data = $this->sortNeedsActionFirst($query->with('employee')->get(), $needsAction);
+            $data = $this->sortNeedsActionFirst($query->with(['employee', 'persetujuanAtasan.approver'])->get(), $needsAction);
             $approveClass = $viewType === 'team' ? 'btn-approve-manager' : 'btn-approve-hrd';
 
             return DataTables::of($data)
@@ -262,7 +262,7 @@ class PengajuanLiburController extends Controller
         }
 
         $teamPending = !empty($subordinateIds)
-            ? PengajuanLibur::whereIn('employee_id', $subordinateIds)->where('status_manager', 'menunggu')->count()
+            ? $this->belumDiputuskanOleh(PengajuanLibur::whereIn('employee_id', $subordinateIds)->where('status_manager', 'menunggu'), $employee)->count()
             : 0;
         $hrdPending = $isHrd
             ? PengajuanLibur::where('status_manager', 'disetujui')->where('status_hrd', 'menunggu')->count()
@@ -459,30 +459,39 @@ class PengajuanLiburController extends Controller
             'status' => 'required|in:disetujui,ditolak',
         ], $this->partialApprovalRules(false)));
 
+        $me = Auth::user()->employee;
         $pengajuanLibur = PengajuanLibur::findOrFail($id);
 
-        if (!Auth::user()->employee || !$this->canApproveAsDirectManager(Auth::user()->employee, $pengajuanLibur->employee)) {
+        if (!$me || !$this->canApproveAsDirectManager($me, $pengajuanLibur->employee)) {
             return $this->forbiddenResponse($request, 'Anda bukan atasan langsung untuk pengajuan ini.');
         }
 
-        if ($pengajuanLibur->status_manager !== 'menunggu') {
-            return $this->errorResponse($request, 'Pengajuan ini sudah diproses pada approval tingkat 1.');
-        }
-
-        $daysBefore = (int) $pengajuanLibur->total_hari;
+        $message = '';
         try {
-            $adjust = $this->trimHariMasuk($pengajuanLibur, $this->buildDateAdjustment($pengajuanLibur, $request));
+            $pengajuanLibur = DB::transaction(function () use ($request, $id, $me, &$message) {
+                $pengajuanLibur = PengajuanLibur::with('employee')->lockForUpdate()->findOrFail($id);
+
+                if ($pengajuanLibur->status_manager !== 'menunggu') {
+                    throw new \DomainException('Pengajuan ini sudah diproses pada approval tingkat 1.');
+                }
+
+                $daysBefore = (int) $pengajuanLibur->total_hari;
+                $adjust = $this->trimHariMasuk($pengajuanLibur, $this->buildDateAdjustment($pengajuanLibur, $request));
+                // With 2+ superiors the request stays 'menunggu' until enough of them approved
+                $decision = $this->recordAtasanDecision($pengajuanLibur, $me, $request->status, $request->komentar_manager);
+
+                $pengajuanLibur->update(array_merge($decision['attrs'], $adjust));
+
+                $message = $this->dateApprovalMessage($request, $adjust, $pengajuanLibur, $daysBefore);
+                if (!$decision['final']) {
+                    $message = ($adjust ? $message . ' ' : '') . $this->waitingOtherAtasanMessage($decision);
+                }
+
+                return $pengajuanLibur;
+            });
         } catch (\DomainException $e) {
             return $this->errorResponse($request, $e->getMessage());
         }
-
-        $pengajuanLibur->update(array_merge([
-            'status_manager' => $request->status,
-            'notes_manager' => $request->komentar_manager,
-            'tanggal_persetujuan_manager' => now(),
-        ], $adjust));
-
-        $message = $this->dateApprovalMessage($request, $adjust, $pengajuanLibur, $daysBefore);
         if ($request->ajax()) {
             return response()->json([
                 'success' => true,

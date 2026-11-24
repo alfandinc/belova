@@ -131,12 +131,14 @@ class NavigationBadges
         }
 
         if (!empty($subordinateIds)) {
+            // Requests this superior already decided (waiting for another superior) are not counted
+            $belumSaya = fn ($q) => $q->whereDoesntHave('persetujuanAtasan', fn ($p) => $p->where('approver_employee_id', $employee->id));
             $counts['libur_manager'] = $this->safe(fn () => \App\Models\HRD\PengajuanLibur::whereIn('employee_id', $subordinateIds)
-                ->where('status_manager', 'menunggu')->count());
+                ->where('status_manager', 'menunggu')->where($belumSaya)->count());
             $counts['tidak_masuk_manager'] = $this->safe(fn () => \App\Models\HRD\PengajuanTidakMasuk::whereIn('employee_id', $subordinateIds)
-                ->whereNull('status_manager')->count());
+                ->where('status_manager', 'menunggu')->where($belumSaya)->count());
             $counts['lembur_manager'] = $this->safe(fn () => \App\Models\HRD\PengajuanLembur::whereIn('employee_id', $subordinateIds)
-                ->whereNull('status_manager')->count());
+                ->where('status_manager', 'menunggu')->where($belumSaya)->count());
             $counts['ganti_shift_manager'] = $this->safe(fn () => \App\Models\HRD\PengajuanGantiShift::whereIn('employee_id', $subordinateIds)
                 ->where(function ($q) {
                     $q->where('status_manager', 'menunggu')->orWhereNull('status_manager');

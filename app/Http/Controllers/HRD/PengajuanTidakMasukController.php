@@ -61,8 +61,8 @@ class PengajuanTidakMasukController extends Controller
                             $this->overlapFilter($q, $filterStart, $filterEnd);
                         })->orWhere('status_manager', 'menunggu');
                     });
-                $needsAction = function ($row) {
-                    return $row->status_manager === 'menunggu';
+                $needsAction = function ($row) use ($employee) {
+                    return $row->status_manager === 'menunggu' && !$this->sudahDiputuskanAtasan($row, $employee);
                 };
             } elseif ($viewType === 'approval' && $isHrd) {
                 // HRD sees every request in range (incl. those still waiting for the atasan),
@@ -84,7 +84,7 @@ class PengajuanTidakMasukController extends Controller
                 return DataTables::of(collect())->make(true);
             }
 
-            $data = $this->sortNeedsActionFirst($query->with('employee')->get(), $needsAction);
+            $data = $this->sortNeedsActionFirst($query->with(['employee', 'persetujuanAtasan.approver'])->get(), $needsAction);
             $approveClass = $viewType === 'team' ? 'btn-approve-manager' : 'btn-approve-hrd';
             $potongIds = array_flip($this->potongCutiTidakMasukIds());
 
@@ -140,7 +140,7 @@ class PengajuanTidakMasukController extends Controller
         }
 
         $teamPending = !empty($subordinateIds)
-            ? PengajuanTidakMasuk::whereIn('employee_id', $subordinateIds)->where('status_manager', 'menunggu')->count()
+            ? $this->belumDiputuskanOleh(PengajuanTidakMasuk::whereIn('employee_id', $subordinateIds)->where('status_manager', 'menunggu'), $employee)->count()
             : 0;
         $hrdPending = $isHrd
             ? PengajuanTidakMasuk::where('status_manager', 'disetujui')->where(function ($q) {
@@ -236,30 +236,39 @@ class PengajuanTidakMasukController extends Controller
             'komentar_manager' => 'nullable|string|max:1000',
             'status' => 'required|in:disetujui,ditolak',
         ], $this->partialApprovalRules(false)));
+        $me = Auth::user()->employee;
         $pengajuan = PengajuanTidakMasuk::findOrFail($id);
 
-        if (!Auth::user()->employee || !$this->canApproveAsDirectManager(Auth::user()->employee, $pengajuan->employee)) {
+        if (!$me || !$this->canApproveAsDirectManager($me, $pengajuan->employee)) {
             return $this->forbiddenResponse($request, 'Anda bukan atasan langsung untuk pengajuan ini.');
         }
 
-        if ($pengajuan->status_manager !== 'menunggu') {
-            return $this->errorResponse($request, 'Pengajuan ini sudah diproses pada approval tingkat 1.');
-        }
-
-        $daysBefore = (int) $pengajuan->total_hari;
+        $message = '';
         try {
-            $adjust = $this->buildDateAdjustment($pengajuan, $request);
+            $pengajuan = DB::transaction(function () use ($request, $id, $me, &$message) {
+                $pengajuan = PengajuanTidakMasuk::with('employee')->lockForUpdate()->findOrFail($id);
+
+                if ($pengajuan->status_manager !== 'menunggu') {
+                    throw new \DomainException('Pengajuan ini sudah diproses pada approval tingkat 1.');
+                }
+
+                $daysBefore = (int) $pengajuan->total_hari;
+                $adjust = $this->buildDateAdjustment($pengajuan, $request);
+                // With 2+ superiors the request stays 'menunggu' until enough of them approved
+                $decision = $this->recordAtasanDecision($pengajuan, $me, $request->status, $request->komentar_manager);
+
+                $pengajuan->update(array_merge($decision['attrs'], $adjust));
+
+                $message = $this->dateApprovalMessage($request, $adjust, $pengajuan, $daysBefore);
+                if (!$decision['final']) {
+                    $message = ($adjust ? $message . ' ' : '') . $this->waitingOtherAtasanMessage($decision);
+                }
+
+                return $pengajuan;
+            });
         } catch (\DomainException $e) {
             return $this->errorResponse($request, $e->getMessage());
         }
-
-        $pengajuan->update(array_merge([
-            'status_manager' => $request->status,
-            'notes_manager' => $request->komentar_manager,
-            'tanggal_persetujuan_manager' => now(),
-        ], $adjust));
-
-        $message = $this->dateApprovalMessage($request, $adjust, $pengajuan, $daysBefore);
         if ($request->ajax()) {
             return response()->json(['success' => true, 'message' => $message, 'data' => $pengajuan]);
         }
