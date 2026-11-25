@@ -23,6 +23,7 @@
         <div class="d-flex flex-wrap" style="gap:6px">
             <a href="{{ route('erm.jasa-medis.rekap') }}" class="btn btn-light btn-sm"><i class="fas fa-chart-bar"></i> Rekap Jasa Medis</a>
             <button type="button" class="btn btn-light btn-sm" id="btnImport"><i class="fas fa-file-import"></i> Import CSV</button>
+            <button type="button" class="btn btn-success btn-sm" id="btnExport" title="Export daftar tarif sesuai filter yang tampil"><i class="fas fa-file-excel"></i> Export Excel</button>
         </div>
     </div>
 
@@ -289,6 +290,17 @@ $(function () {
             })
             .fail(function (xhr) { Swal.fire({ icon: 'error', title: 'Gagal memuat riwayat', html: belovaAjaxError(xhr) }); })
             .always(function () { $btn.prop('disabled', false); });
+    });
+
+    // ================= Export Excel (same filters as the table) =================
+    $('#btnExport').on('click', function () {
+        var q = $.param({
+            aktif: $('#jmAktif').is(':checked') ? 1 : 0,
+            paket: $('#jmPaket').is(':checked') ? 1 : 0,
+            tarif: state.filter,
+            q: $('#jmSearch').val() || ''
+        });
+        window.location = '{{ route('erm.jasa-medis.export') }}?' + q;
     });
 
     // ================= Import CSV =================

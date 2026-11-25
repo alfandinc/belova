@@ -1317,6 +1317,7 @@ Route::prefix('erm/jasa-medis')->middleware('auth')->group(function () {
     Route::middleware('role:Admin|Finance')->group(function () {
         Route::get('/', [App\Http\Controllers\ERM\JasaMedisController::class, 'index'])->name('erm.jasa-medis.index');
         Route::get('/data', [App\Http\Controllers\ERM\JasaMedisController::class, 'data'])->name('erm.jasa-medis.data');
+        Route::get('/export', [App\Http\Controllers\ERM\JasaMedisController::class, 'export'])->name('erm.jasa-medis.export');
         Route::post('/import', [App\Http\Controllers\ERM\JasaMedisController::class, 'import'])->name('erm.jasa-medis.import');
         Route::post('/{kodeTindakan}', [App\Http\Controllers\ERM\JasaMedisController::class, 'save'])->name('erm.jasa-medis.save');
         Route::get('/{kodeTindakan}/riwayat', [App\Http\Controllers\ERM\JasaMedisController::class, 'riwayat'])->name('erm.jasa-medis.riwayat');

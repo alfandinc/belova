@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\ERM;
 
 use App\Exports\ERM\JasaMedisRekapExport;
+use App\Exports\ERM\JasaMedisTarifExport;
 use App\Http\Controllers\Controller;
 use App\Models\ERM\JasaMedis;
 use App\Models\ERM\JasaMedisTarif;
@@ -33,6 +34,29 @@ class JasaMedisController extends Controller
 
     public function data()
     {
+        return response()->json(['data' => $this->tarifRows()]);
+    }
+
+    /** Excel of the tarif list, with the same filters as the page (aktif, paket aktif, tarif, cari) */
+    public function export(Request $request)
+    {
+        $cari = mb_strtolower(trim((string) $request->query('q', '')));
+        $tarif = $request->query('tarif');
+        $rows = $this->tarifRows()->filter(function ($r) use ($request, $cari, $tarif) {
+            if ($request->boolean('aktif') && !$r->is_active) return false;
+            if ($request->boolean('paket') && !$r->paket_aktif) return false;
+            if ($tarif === 'ada' && !$r->ada_tarif) return false;
+            if ($tarif === 'belum' && $r->ada_tarif) return false;
+            if ($cari !== '' && !str_contains(mb_strtolower($r->nama . ' ' . $r->kode), $cari)) return false;
+
+            return true;
+        })->values();
+
+        return Excel::download(new JasaMedisTarifExport($rows), 'tarif-jasa-medis-' . now()->format('Y-m-d') . '.xlsx');
+    }
+
+    private function tarifRows()
+    {
         $paket = DB::table('erm_tindakan_kode_tindakan as tk')
             ->join('erm_tindakan as t', 't.id', '=', 'tk.tindakan_id')
             ->where('t.is_active', 1)
@@ -40,7 +64,7 @@ class JasaMedisController extends Controller
             ->select('tk.kode_tindakan_id')
             ->selectRaw('COUNT(*) as paket_aktif');
 
-        $rows = DB::table('erm_kode_tindakan as k')
+        return DB::table('erm_kode_tindakan as k')
             ->leftJoin('erm_jasa_medis as j', 'j.kode_tindakan_id', '=', 'k.id')
             ->leftJoin('users as u', 'u.id', '=', 'j.updated_by')
             ->leftJoinSub($paket, 'pk', 'pk.kode_tindakan_id', '=', 'k.id')
@@ -56,8 +80,6 @@ class JasaMedisController extends Controller
 
                 return $r;
             });
-
-        return response()->json(['data' => $rows]);
     }
 
     public function save(Request $request, KodeTindakan $kodeTindakan)
