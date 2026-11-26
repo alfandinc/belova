@@ -138,8 +138,11 @@ class MainNavigation
             $this->can('Farmasi', 'Admin', 'Finance')
                 ? $this->item('Harga Jual Obat', 'tag', $this->route('erm.harga-jual.index'), $this->badge('harga_menunggu', 'warning', 'Pengajuan harga menunggu'))
                 : null,
-            $this->can('Marketing', 'Admin', 'Finance')
+            $this->can(...\App\Http\Controllers\Marketing\HargaTindakanController::VIEWER_ROLES)
                 ? $this->item('Harga Paket Tindakan', 'tag', $this->route('marketing.harga-tindakan.index'), $this->badge('harga_tindakan_menunggu', 'warning', 'Pengajuan harga paket tindakan menunggu'))
+                : null,
+            $this->can(...\App\Http\Controllers\ERM\HitungHargaController::ROLES)
+                ? $this->item('Hitung Harga Paket', 'trending-up', $this->route('harga-paket.index'))
                 : null,
             $this->can('Marketing', 'Admin', 'Finance') ? $this->item('Promo', 'percent', url('/marketing/promo')) : null,
             $this->item('Buku Menu', 'book', url('/buku-menu')),

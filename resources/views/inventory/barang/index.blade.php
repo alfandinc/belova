@@ -53,6 +53,14 @@
                 @endforeach
             </select>
         </div>
+        <div class="col-md-3">
+            <label for="filterAlat">Alat Tindakan</label>
+            <select id="filterAlat" class="form-control">
+                <option value="">Semua</option>
+                <option value="1">Ya, alat tindakan</option>
+                <option value="0">Belum / bukan</option>
+            </select>
+        </div>
     </div>
     <div class="row mb-2">
         <div class="col-12">
@@ -71,9 +79,16 @@
             <button type="button" class="btn btn-light float-right" id="createNewBarang">Add New Barang</button>
         </div>
         <div class="card-body">
+            <div class="d-flex flex-wrap align-items-center mb-2" style="gap:6px">
+                <small class="text-muted"><strong>Alat Tindakan</strong> = alat yang biayanya ikut dihitung ke harga paket tindakan (laser, HIFU, RF, USG, dental unit, ...). Centang barang di tabel lalu:</small>
+                <span class="small text-muted ml-auto" id="alatSelectedInfo"></span>
+                <button type="button" class="btn btn-sm btn-info" id="alatTandai" disabled><i class="fas fa-check"></i> Tandai Alat Tindakan</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="alatLepas" disabled><i class="fas fa-times"></i> Bukan Alat Tindakan</button>
+            </div>
             <table class="table table-bordered w-100 data-table">
                 <thead>
                     <tr>
+                        <th style="width:24px"><input type="checkbox" id="alatCheckAll" title="Pilih semua di halaman ini"></th>
                         <th width="5%">No</th>
                         <th>Kode</th>
                         <th>Name</th>
@@ -81,6 +96,7 @@
                         <th>Ruangan</th>
                         <th>Stok</th>
                         <th>Satuan</th>
+                        <th>Alat Tindakan</th>
                         <th width="15%">Action</th>
                     </tr>
                 </thead>
@@ -173,6 +189,47 @@
                     <div class="form-group mb-3">
                         <label for="spec" class="form-label">Specification</label>
                         <textarea class="form-control" id="spec" name="spec" rows="3" placeholder="Enter specification"></textarea>
+                    </div>
+                    <div class="border rounded p-2 mb-3" style="background:#f6fbfd">
+                        <div class="custom-control custom-checkbox">
+                            <input type="checkbox" class="custom-control-input" id="is_alat_tindakan" name="is_alat_tindakan" value="1">
+                            <label class="custom-control-label font-weight-bold" for="is_alat_tindakan">Alat Tindakan</label>
+                            <small class="text-muted d-block">Centang kalau biaya alat ini ikut dihitung ke harga paket tindakan.</small>
+                        </div>
+                        <div id="alatFields" class="mt-2" style="display:none">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group mb-2">
+                                        <label for="umur_pakai_tahun" class="form-label mb-0">Umur pakai (tahun)</label>
+                                        <input type="number" class="form-control" id="umur_pakai_tahun" name="umur_pakai_tahun" min="1" max="50" step="1" placeholder="mis. 5">
+                                        <small class="text-muted">Perkiraan sampai alat perlu diganti. Laser/HIFU/RF ± 5, USG 5–7, dental unit 7–10.</small>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group mb-2">
+                                        <label for="target_pakai_per_bulan" class="form-label mb-0">Target pemakaian (kali / bulan / unit)</label>
+                                        <input type="number" class="form-control" id="target_pakai_per_bulan" name="target_pakai_per_bulan" min="1" step="1" placeholder="mis. 100">
+                                        <small class="text-muted">Berapa kali alat <em>seharusnya</em> dipakai dalam bulan yang normal.</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group mb-0">
+                                        <label for="harga_perolehan" class="form-label mb-0">Harga alat per unit (Rp) <span class="text-muted">— opsional</span></label>
+                                        <input type="number" class="form-control" id="harga_perolehan" name="harga_perolehan" min="0" step="1" placeholder="kosong = pembelian terakhir">
+                                        <small class="text-muted">Harga beli + ongkir + pasang + pelatihan. Kosongkan untuk memakai harga dari menu Pembelian. Alat lama tanpa nota: isi harga alat sejenis sekarang.</small>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group mb-0">
+                                        <label for="tanggal_perolehan" class="form-label mb-0">Tanggal mulai dipakai <span class="text-muted">— opsional</span></label>
+                                        <input type="date" class="form-control" id="tanggal_perolehan" name="tanggal_perolehan" max="{{ date('Y-m-d') }}">
+                                        <small class="text-muted">Untuk menghitung balik modal. Kosong = tanggal pembelian terakhir.</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     <div class="form-group text-right">
                         <button type="submit" class="btn btn-primary" id="saveBtn">Save</button>
@@ -284,9 +341,11 @@
                     d.gedung_id = $('#filterGedung').val();
                     d.ruangan_id = $('#filterRuangan').val();
                     d.tipe_barang_id = $('#filterTipeBarang').val();
+                    d.alat_tindakan = $('#filterAlat').val();
                 }
             },
             columns: [
+                {data: 'check', name: 'check', orderable: false, searchable: false},
                 {data: 'DT_RowIndex', name: 'DT_RowIndex'},
                 {data: 'kode', name: 'kode'},
                 {data: 'name', name: 'name'},
@@ -294,6 +353,7 @@
                 {data: 'ruangan', name: 'ruangan'},
                 {data: 'stok', name: 'stok'},
                 {data: 'satuan', name: 'satuan'},
+                {data: 'alat_tindakan', name: 'alat_tindakan', orderable: false, searchable: false},
                 {data: 'action', name: 'action', orderable: false, searchable: false},
                 {data: 'under_maintenance', name: 'under_maintenance', visible: false, searchable: false},
             ],
@@ -305,8 +365,47 @@
                 } else if (data.under_maintenance && data.under_maintenance === 'Proses') {
                     $(row).addClass('maintenance-row');
                 }
-            }
+            },
+            drawCallback: function () { $('#alatCheckAll').prop('checked', false); }
         });
+
+        // ===== Alat tindakan: filter, bulk mark, form fields =====
+        var alatSelected = {};
+        function refreshAlatSelected() {
+            var n = Object.keys(alatSelected).length;
+            $('#alatSelectedInfo').text(n ? n + ' barang dipilih' : '');
+            $('#alatTandai, #alatLepas').prop('disabled', !n);
+        }
+        $('#filterAlat').on('change', function () { table.ajax.reload(); });
+        $('.data-table').on('change', '.alat-check', function () {
+            if (this.checked) alatSelected[this.value] = true; else delete alatSelected[this.value];
+            refreshAlatSelected();
+        });
+        $('.data-table').on('draw.dt', function () {
+            $('.data-table .alat-check').each(function () { this.checked = !!alatSelected[this.value]; });
+        });
+        $('#alatCheckAll').on('change', function () {
+            var on = this.checked;
+            $('.data-table .alat-check').each(function () { if (this.checked !== on) $(this).prop('checked', on).trigger('change'); });
+        });
+        function tandaiAlat(value) {
+            var ids = Object.keys(alatSelected).map(Number);
+            if (!ids.length) return;
+            $.ajax({
+                url: "{{ route('inventory.barang.alat-massal') }}", type: 'POST', contentType: 'application/json',
+                headers: { Accept: 'application/json' }, data: JSON.stringify({ ids: ids, value: value })
+            }).done(function (res) {
+                alatSelected = {};
+                refreshAlatSelected();
+                table.draw(false);
+                Swal.fire({ icon: 'success', title: 'Selesai', text: res.message });
+            }).fail(function (xhr) {
+                Swal.fire({ icon: 'error', title: 'Gagal', text: (xhr.responseJSON && xhr.responseJSON.message) || 'Gagal menyimpan.' });
+            });
+        }
+        $('#alatTandai').on('click', function () { tandaiAlat(true); });
+        $('#alatLepas').on('click', function () { tandaiAlat(false); });
+        $('#is_alat_tindakan').on('change', function () { $('#alatFields').toggle(this.checked); });
 
         // Initialize select2 for modal (inside modal only)
         $('#tipe_barang_id').select2({
@@ -327,6 +426,7 @@
             // Reset select2
             $('#tipe_barang_id').val('').trigger('change');
             $('#ruangan_id').val('').trigger('change');
+            $('#is_alat_tindakan').prop('checked', false).trigger('change');
         });
 
         $('body').on('click', '.edit', function() {
@@ -345,6 +445,11 @@
                 $('#tipe_barang_id').val(data.tipe_barang_id).trigger('change');
                 $('#ruangan_id').val(data.ruangan_id).trigger('change');
                 $('#stok').val(data.stok_barang ? data.stok_barang.jumlah : 0);
+                $('#is_alat_tindakan').prop('checked', !!data.is_alat_tindakan).trigger('change');
+                $('#umur_pakai_tahun').val(data.umur_pakai_tahun || '');
+                $('#target_pakai_per_bulan').val(data.target_pakai_per_bulan || '');
+                $('#harga_perolehan').val(data.harga_perolehan > 0 ? Math.round(data.harga_perolehan) : '');
+                $('#tanggal_perolehan').val(data.tanggal_perolehan ? String(data.tanggal_perolehan).substring(0, 10) : '');
             });
         });
 

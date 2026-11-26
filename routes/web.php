@@ -1662,8 +1662,42 @@ Route::prefix('inventory')->middleware('role:Admin|Inventaris')->group(function 
         
         // Maintenance Barang
         Route::resource('maintenance', App\Http\Controllers\Inventory\MaintenanceBarangController::class);
+        Route::post('barang/alat-tindakan/massal', [App\Http\Controllers\Inventory\BarangController::class, 'tandaiAlatMassal'])->name('inventory.barang.alat-massal');
     }
 );
+
+// Hitung Harga Paket: modal paket (BHP + jasa + alat + biaya lain) → harga saran → pengajuan harga
+Route::prefix('harga-paket')->middleware(['auth', 'role:' . implode('|', \App\Http\Controllers\ERM\HitungHargaController::ROLES)])->group(function () {
+    $c = \App\Http\Controllers\ERM\HitungHargaController::class;
+    Route::get('/', [$c, 'index'])->name('harga-paket.index');
+    Route::get('/data', [$c, 'data'])->name('harga-paket.data');
+    Route::get('/paket/{id}', [$c, 'show'])->name('harga-paket.show');
+    Route::post('/paket/{id}', [$c, 'simpan'])->name('harga-paket.simpan');
+    Route::post('/paket/{id}/ajukan', [$c, 'ajukan'])->name('harga-paket.ajukan');
+    Route::get('/alat/data', [$c, 'alatData'])->name('harga-paket.alat.data');
+    Route::get('/alat/cari', [$c, 'alatCari'])->name('harga-paket.alat.cari');
+    Route::get('/alat/{barang}', [$c, 'alatShow'])->name('harga-paket.alat.show');
+    Route::post('/alat/{barang}', [$c, 'alatSimpan'])->name('harga-paket.alat.simpan');
+    Route::get('/biaya-lain/data', [$c, 'biayaLainData'])->name('harga-paket.biaya-lain.data');
+    Route::post('/biaya-lain', [$c, 'biayaLainStore'])->name('harga-paket.biaya-lain.store');
+    Route::put('/biaya-lain/{id}', [$c, 'biayaLainUpdate'])->name('harga-paket.biaya-lain.update');
+    Route::post('/biaya-lain/{id}/toggle', [$c, 'biayaLainToggle'])->name('harga-paket.biaya-lain.toggle');
+});
+
+// Harga jual paket tindakan: Marketing/Admin propose here (Finance/Manager via Hitung Harga Paket), Admin/Finance approve.
+// Own group, outside the 'marketing' prefix group whose roles exclude Manager. Same URLs and route names as before.
+Route::prefix('marketing/harga-tindakan')->middleware(['auth', 'role:' . implode('|', \App\Http\Controllers\Marketing\HargaTindakanController::VIEWER_ROLES)])->group(function () {
+    $c = App\Http\Controllers\Marketing\HargaTindakanController::class;
+    Route::get('/', [$c, 'index'])->name('marketing.harga-tindakan.index');
+    Route::get('/data', [$c, 'data'])->name('marketing.harga-tindakan.data');
+    Route::get('/pengajuan', [$c, 'pengajuanData'])->name('marketing.harga-tindakan.pengajuan');
+    Route::get('/tindakan/{tindakan}/riwayat', [$c, 'riwayat'])->name('marketing.harga-tindakan.riwayat');
+    Route::post('/pengajuan', [$c, 'store'])->middleware('role:' . implode('|', \App\Http\Controllers\Marketing\HargaTindakanController::PENGAJU_ROLES))->name('marketing.harga-tindakan.store');
+    // Anyone who can propose (here or from Hitung Harga Paket) may cancel; the controller allows only the pengaju or Admin
+    Route::post('/pengajuan/{id}/batal', [$c, 'batal'])->name('marketing.harga-tindakan.batal');
+    Route::post('/pengajuan/approve', [$c, 'approve'])->middleware('role:' . implode('|', \App\Http\Controllers\Marketing\HargaTindakanController::APPROVER_ROLES))->name('marketing.harga-tindakan.approve');
+    Route::post('/pengajuan/{id}/reject', [$c, 'reject'])->middleware('role:' . implode('|', \App\Http\Controllers\Marketing\HargaTindakanController::APPROVER_ROLES))->name('marketing.harga-tindakan.reject');
+});
 
 // Profil Saya (topbar): any logged-in account. Data karyawan only when the account is linked to an employee;
 // ganti password works for every account (dokter, kasir, ... included).
@@ -1967,17 +2001,7 @@ Route::prefix('marketing')->middleware('role:Marketing|Admin|Beautician|Finance|
 
     
     
-    // Harga jual paket tindakan: Marketing/Admin propose, Admin/Finance approve
-    Route::prefix('harga-tindakan')->middleware('role:Admin|Marketing|Finance')->group(function () {
-        Route::get('/', [App\Http\Controllers\Marketing\HargaTindakanController::class, 'index'])->name('marketing.harga-tindakan.index');
-        Route::get('/data', [App\Http\Controllers\Marketing\HargaTindakanController::class, 'data'])->name('marketing.harga-tindakan.data');
-        Route::get('/pengajuan', [App\Http\Controllers\Marketing\HargaTindakanController::class, 'pengajuanData'])->name('marketing.harga-tindakan.pengajuan');
-        Route::get('/tindakan/{tindakan}/riwayat', [App\Http\Controllers\Marketing\HargaTindakanController::class, 'riwayat'])->name('marketing.harga-tindakan.riwayat');
-        Route::post('/pengajuan', [App\Http\Controllers\Marketing\HargaTindakanController::class, 'store'])->middleware('role:Admin|Marketing')->name('marketing.harga-tindakan.store');
-        Route::post('/pengajuan/{id}/batal', [App\Http\Controllers\Marketing\HargaTindakanController::class, 'batal'])->middleware('role:Admin|Marketing')->name('marketing.harga-tindakan.batal');
-        Route::post('/pengajuan/approve', [App\Http\Controllers\Marketing\HargaTindakanController::class, 'approve'])->middleware('role:Admin|Finance')->name('marketing.harga-tindakan.approve');
-        Route::post('/pengajuan/{id}/reject', [App\Http\Controllers\Marketing\HargaTindakanController::class, 'reject'])->middleware('role:Admin|Finance')->name('marketing.harga-tindakan.reject');
-    });
+    // Harga Paket Tindakan routes: see the 'marketing/harga-tindakan' group below (outside this group so Manager can enter)
 
     Route::get('/pasien-data', [App\Http\Controllers\Marketing\MarketingController::class, 'pasienData'])->name('marketing.pasien-data');
 

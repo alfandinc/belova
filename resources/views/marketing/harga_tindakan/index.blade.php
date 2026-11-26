@@ -205,6 +205,7 @@ $(function () {
     var CSRF = '{{ csrf_token() }}';
     var CAN_PROPOSE = @json($canPropose);
     var CAN_APPROVE = @json($canApprove);
+    var HITUNG_URL = @json($canHitung ? route('harga-paket.index') : null);
     var URLS = {
         data: '{{ route('marketing.harga-tindakan.data') }}',
         pengajuan: '{{ route('marketing.harga-tindakan.pengajuan') }}',
@@ -301,7 +302,8 @@ $(function () {
             {
                 data: null, orderable: false, searchable: false, className: 'text-right text-nowrap',
                 render: function (d, t, r) {
-                    return (CAN_PROPOSE ? '<button type="button" class="btn btn-sm btn-outline-primary btn-ajukan" data-id="' + r.id + '" title="Ajukan harga baru"><i class="fas fa-paper-plane"></i> Ajukan</button> ' : '')
+                    return (HITUNG_URL ? '<a class="btn btn-sm btn-outline-success" href="' + HITUNG_URL + '?paket=' + r.id + '" title="Hitung modal & harga saran"><i class="fas fa-calculator"></i> Hitung</a> ' : '')
+                        + (CAN_PROPOSE ? '<button type="button" class="btn btn-sm btn-outline-primary btn-ajukan" data-id="' + r.id + '" title="Ajukan harga baru"><i class="fas fa-paper-plane"></i> Ajukan</button> ' : '')
                         + '<button type="button" class="btn btn-sm btn-outline-secondary btn-riwayat" data-id="' + r.id + '" title="Riwayat harga"><i class="fas fa-history"></i></button>';
                 }
             }
@@ -544,7 +546,15 @@ $(function () {
                 data: 'biaya_bahan', orderable: false, searchable: false, className: 'text-right text-nowrap',
                 render: function (d, t, r) {
                     var bayar = r.diskon_active_baru && num(r.harga_diskon_baru) > 0 ? num(r.harga_diskon_baru) : num(r.harga_baru);
-                    return rupiah(d) + (d > 0 ? '<div class="small">bahan ' + bahanHtml(num(d), bayar) + '</div>' : '');
+                    var html = rupiah(d) + (d > 0 ? '<div class="small">bahan ' + bahanHtml(num(d), bayar) + '</div>' : '');
+                    // Proposal from Hitung Harga Paket: full modal (bahan + jasa + alat + biaya lain) and its untung
+                    if (r.biaya_jasa !== null && r.biaya_jasa !== undefined) {
+                        var modal = (num(d) || 0) + (num(r.biaya_jasa) || 0) + (num(r.biaya_alat) || 0) + (num(r.biaya_lain) || 0);
+                        var u = bayar > 0 ? (bayar - modal) / bayar * 100 : null;
+                        html += '<div class="small border-top mt-1 pt-1" title="Dari Hitung Harga Paket">jasa ' + rupiah(r.biaya_jasa) + ' · alat ' + rupiah(r.biaya_alat) + ' · lain ' + rupiah(r.biaya_lain) + '</div>'
+                            + '<div class="small"><strong>modal ' + rupiah(modal) + '</strong>' + (u !== null ? ' · untung <strong class="' + (u < 0 ? 'text-danger' : (u < {{ \App\Services\ERM\HitungHargaService::UNTUNG_MINIMAL }} ? 'text-warning' : 'text-success')) + '">' + pct(u) + '</strong>' : '') + '</div>';
+                    }
+                    return html;
                 }
             },
             { data: 'alasan', orderable: false, searchable: false, render: function (d) { return '<span class="small">' + esc(d || '-') + '</span>'; } },

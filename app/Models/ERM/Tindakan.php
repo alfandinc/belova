@@ -14,6 +14,22 @@ class Tindakan extends Model
     {
         return $this->belongsToMany(KodeTindakan::class, 'erm_tindakan_kode_tindakan', 'tindakan_id', 'kode_tindakan_id');
     }
+
+    /** Alat tindakan (inventory) used per visit of this paket, for Hitung Harga Paket */
+    public function alats()
+    {
+        return $this->belongsToMany(\App\Models\Inventory\Barang::class, 'erm_tindakan_alat', 'tindakan_id', 'barang_id')
+            ->withPivot('qty')
+            ->withTimestamps();
+    }
+
+    /** Biaya lain per visit of this paket, for Hitung Harga Paket */
+    public function biayaLains()
+    {
+        return $this->belongsToMany(BiayaLain::class, 'erm_tindakan_biaya_lain', 'tindakan_id', 'biaya_lain_id')
+            ->withPivot('nominal')
+            ->withTimestamps();
+    }
     protected $table = 'erm_tindakan';
     protected $fillable = ['nama', 'deskripsi', 'consent_content', 'consent_kategori_id', 'harga', 'spesialis_id', 'harga_diskon', 'diskon_active', 'is_active', 'harga_paket_visit', 'is_slimming', 'is_vaksin', 'multi_visit_total', 'total_rf', 'total_inject'];
     protected $casts = [

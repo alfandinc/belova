@@ -53,7 +53,7 @@ class NavigationBadges
             $counts['harga_menunggu'] = $this->safe(fn () => \App\Models\ERM\ObatHargaPengajuan::where('status', 'menunggu')->count());
         }
 
-        if ($user->hasAnyRole(['Marketing', 'Admin', 'Finance'])) {
+        if ($user->hasAnyRole(\App\Http\Controllers\Marketing\HargaTindakanController::VIEWER_ROLES)) {
             $counts['harga_tindakan_menunggu'] = $this->safe(fn () => \App\Models\ERM\TindakanHargaPengajuan::where('status', 'menunggu')->count());
         }
 

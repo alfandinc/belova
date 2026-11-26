@@ -37,6 +37,10 @@ class BarangController extends Controller
             if ($request->filled('tipe_barang_id')) {
                 $data = $data->where('tipe_barang_id', $request->tipe_barang_id);
             }
+            // Alat tindakan (Hitung Harga Paket): 1 = ya, 0 = belum
+            if (in_array($request->input('alat_tindakan'), ['0', '1'], true)) {
+                $data = $data->where('is_alat_tindakan', $request->input('alat_tindakan') === '1');
+            }
             $data = $data->latest();
             return DataTables::of($data)
                 ->addIndexColumn()
@@ -52,11 +56,24 @@ class BarangController extends Controller
                 ->addColumn('under_maintenance', function($row){
                     return $row->maintenanceBarang && $row->maintenanceBarang->count() > 0 ? true : false;
                 })
+                ->addColumn('check', fn ($row) => '<input type="checkbox" class="alat-check" value="' . $row->id . '">')
+                ->addColumn('alat_tindakan', function ($row) {
+                    if (!$row->is_alat_tindakan) {
+                        return '<span class="text-muted small">-</span>';
+                    }
+                    $kurang = array_filter([
+                        !$row->umur_pakai_tahun ? 'umur' : null,
+                        !$row->target_pakai_per_bulan ? 'target' : null,
+                    ]);
+
+                    return '<span class="badge badge-info">Alat Tindakan</span>'
+                        . ($kurang ? '<div class="small text-warning">belum isi ' . implode(' & ', $kurang) . '</div>' : '');
+                })
                 ->addColumn('action', function($row){
                     $actionBtn = '<a href="javascript:void(0)" data-id="'.$row->id.'" class="edit btn btn-success btn-sm">Edit</a> <a href="javascript:void(0)" data-id="'.$row->id.'" class="delete btn btn-danger btn-sm">Delete</a>';
                     return $actionBtn;
                 })
-                ->rawColumns(['action'])
+                ->rawColumns(['action', 'check', 'alat_tindakan'])
                 ->order(function ($query) {
                     $query->orderBy('created_at', 'desc');
                 })
@@ -88,14 +105,33 @@ class BarangController extends Controller
             'spec' => 'nullable|string|max:500',
             'depreciation_rate' => 'nullable|numeric|min:0|max:100',
             'stok' => 'required|integer|min:0',
+            // Alat tindakan (Hitung Harga Paket)
+            'is_alat_tindakan' => 'nullable|boolean',
+            'harga_perolehan' => 'nullable|numeric|min:0|max:99999999999',
+            'tanggal_perolehan' => 'nullable|date|before_or_equal:today',
+            'umur_pakai_tahun' => 'nullable|integer|min:1|max:50',
+            'target_pakai_per_bulan' => 'nullable|integer|min:1|max:100000',
+        ], [
+            'tanggal_perolehan.before_or_equal' => 'Tanggal perolehan tidak boleh di masa depan.',
+            'umur_pakai_tahun.min' => 'Umur pakai minimal 1 tahun.',
+            'target_pakai_per_bulan.min' => 'Target pemakaian minimal 1 kali per bulan.',
         ]);
+        // Only the Inventory form sends the alat fields; other callers must not wipe them
+        $alatFields = $request->has('umur_pakai_tahun') ? [
+            'is_alat_tindakan' => $request->boolean('is_alat_tindakan'),
+            // Kept when the box is unticked, so ticking it again restores them
+            'harga_perolehan' => $request->harga_perolehan > 0 ? $request->harga_perolehan : null,
+            'tanggal_perolehan' => $request->tanggal_perolehan ?: null,
+            'umur_pakai_tahun' => $request->umur_pakai_tahun ?: null,
+            'target_pakai_per_bulan' => $request->target_pakai_per_bulan ?: null,
+        ] : [];
 
         DB::beginTransaction();
 
         try {
             $barang = Barang::updateOrCreate(
                 ['id' => $request->barang_id],
-                [
+                $alatFields + [
                     'name' => $request->name,
                     'tipe_barang_id' => $request->tipe_barang_id,
                     'ruangan_id' => $request->ruangan_id,
@@ -103,7 +139,8 @@ class BarangController extends Controller
                     'satuan' => $request->satuan,
                     'merk' => $request->merk,
                     'spec' => $request->spec,
-                    'depreciation_rate' => $request->depreciation_rate,
+                    // Column is NOT NULL: an empty field means 0
+                    'depreciation_rate' => $request->depreciation_rate ?? 0,
                 ]
             );
             // Handle stock update through centralized helper so kartu stok is recorded.
@@ -206,6 +243,25 @@ class BarangController extends Controller
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => 'Failed to update stok: ' . $e->getMessage()]);
         }
+    }
+
+    /**
+     * Mark / unmark many barang as alat tindakan at once (Hitung Harga Paket).
+     */
+    public function tandaiAlatMassal(Request $request)
+    {
+        $data = $request->validate([
+            'ids' => 'required|array|min:1|max:500',
+            'ids.*' => 'integer|exists:inv_barang,id',
+            'value' => 'required|boolean',
+        ], ['ids.required' => 'Pilih minimal satu barang.']);
+
+        $n = Barang::whereIn('id', $data['ids'])->update(['is_alat_tindakan' => (bool) $data['value'], 'updated_at' => now()]);
+
+        return response()->json([
+            'success' => true,
+            'message' => $n . ' barang ' . ($data['value'] ? 'ditandai sebagai Alat Tindakan. Lengkapi umur pakai & target pemakaiannya lewat Edit.' : 'tidak lagi ditandai Alat Tindakan.'),
+        ]);
     }
 
     // Add endpoint for AJAX ruangan by gedung

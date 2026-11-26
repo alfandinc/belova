@@ -21,7 +21,7 @@ class TindakanHargaPengajuan extends Model
         'tindakan_id',
         'harga_lama', 'harga_baru', 'harga_diskon_lama', 'harga_diskon_baru',
         'diskon_active_lama', 'diskon_active_baru', 'harga_paket_visit_lama', 'harga_paket_visit_baru',
-        'biaya_bahan', 'alasan', 'status',
+        'biaya_bahan', 'biaya_jasa', 'biaya_alat', 'biaya_lain', 'rincian', 'alasan', 'status',
         'diajukan_by', 'disetujui_by', 'disetujui_at', 'ditolak_by', 'ditolak_at', 'alasan_tolak', 'dibatalkan_at',
     ];
 
@@ -35,6 +35,10 @@ class TindakanHargaPengajuan extends Model
         'harga_paket_visit_lama' => 'float',
         'harga_paket_visit_baru' => 'float',
         'biaya_bahan' => 'float',
+        'biaya_jasa' => 'float',
+        'biaya_alat' => 'float',
+        'biaya_lain' => 'float',
+        'rincian' => 'array',
         'disetujui_at' => 'datetime',
         'ditolak_at' => 'datetime',
         'dibatalkan_at' => 'datetime',

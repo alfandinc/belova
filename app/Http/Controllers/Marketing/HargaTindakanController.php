@@ -6,8 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Models\ERM\Obat;
 use App\Models\ERM\Tindakan;
 use App\Models\ERM\TindakanHargaPengajuan;
+use App\Models\User;
 use App\Services\ERM\MasterPembelianService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Yajra\DataTables\Facades\DataTables;
 
@@ -20,20 +23,31 @@ class HargaTindakanController extends Controller
 {
     public const PENGAJU_ROLES = ['Admin', 'Marketing'];
     public const APPROVER_ROLES = ['Admin', 'Finance'];
+    /** Can open the page; Manager (and Finance) propose from Hitung Harga Paket and may cancel their own proposal here */
+    public const VIEWER_ROLES = ['Admin', 'Marketing', 'Finance', 'Manager'];
 
     public const FILTERS = ['semua', 'menunggu', 'rugi', 'tanpa_harga', 'tanpa_isi'];
 
     /** Price the patient pays without promo: the discount price when the discount is on */
     private const HARGA_EFEKTIF_SQL = '(CASE WHEN erm_tindakan.diskon_active = 1 AND erm_tindakan.harga_diskon > 0 THEN erm_tindakan.harga_diskon ELSE erm_tindakan.harga END)';
 
+    /** The logged-in user, typed as User so the role methods (hasAnyRole, hasRole) are known */
+    public static function me(): User
+    {
+        /** @var User $user */
+        $user = Auth::user();
+
+        return $user;
+    }
+
     private function canApprove(): bool
     {
-        return auth()->user()->hasAnyRole(self::APPROVER_ROLES);
+        return self::me()->hasAnyRole(self::APPROVER_ROLES);
     }
 
     private function canPropose(): bool
     {
-        return auth()->user()->hasAnyRole(self::PENGAJU_ROLES);
+        return self::me()->hasAnyRole(self::PENGAJU_ROLES);
     }
 
     /**
@@ -108,7 +122,7 @@ class HargaTindakanController extends Controller
      * Open a proposal for one paket, replacing any proposal still waiting. Returns null when nothing changes.
      * Also used when a new paket is created from the Paket Tindakan form.
      */
-    public static function ajukan(Tindakan $tindakan, array $baru, string $alasan): ?TindakanHargaPengajuan
+    public static function ajukan(Tindakan $tindakan, array $baru, string $alasan, array $extra = []): ?TindakanHargaPengajuan
     {
         $baru = [
             'harga' => round((float) $baru['harga'], 2),
@@ -124,13 +138,14 @@ class HargaTindakanController extends Controller
         TindakanHargaPengajuan::where('tindakan_id', $tindakan->id)->where('status', 'menunggu')->lockForUpdate()->get()
             ->each(fn ($p) => $p->update(['status' => 'dibatalkan', 'dibatalkan_at' => now(), 'alasan_tolak' => 'Digantikan pengajuan baru']));
 
-        $row = ['tindakan_id' => $tindakan->id, 'biaya_bahan' => self::biayaBahan($tindakan->id), 'alasan' => trim($alasan), 'status' => 'menunggu', 'diajukan_by' => auth()->id()];
+        $row = ['tindakan_id' => $tindakan->id, 'biaya_bahan' => self::biayaBahan($tindakan->id), 'alasan' => trim($alasan), 'status' => 'menunggu', 'diajukan_by' => Auth::id()];
         foreach (TindakanHargaPengajuan::FIELDS as $f) {
             $row[$f . '_lama'] = $lama[$f];
             $row[$f . '_baru'] = $baru[$f];
         }
 
-        return TindakanHargaPengajuan::create($row);
+        // From Hitung Harga Paket: the full modal breakdown (biaya_bahan, biaya_jasa, biaya_alat, biaya_lain, rincian)
+        return TindakanHargaPengajuan::create(array_merge($row, $extra));
     }
 
     public function index()
@@ -138,6 +153,7 @@ class HargaTindakanController extends Controller
         return view('marketing.harga_tindakan.index', [
             'canPropose' => $this->canPropose(),
             'canApprove' => $this->canApprove(),
+            'canHitung' => self::me()->hasAnyRole(\App\Http\Controllers\ERM\HitungHargaController::ROLES),
             'menunggu' => TindakanHargaPengajuan::where('status', 'menunggu')->count(),
         ]);
     }
@@ -186,7 +202,7 @@ class HargaTindakanController extends Controller
             ->make(true);
     }
 
-    private function applyFilter($query, string $filter): void
+    private function applyFilter(Builder $query, string $filter): void
     {
         switch ($filter) {
             case 'menunggu':
@@ -232,9 +248,9 @@ class HargaTindakanController extends Controller
      */
     public function pengajuanData(Request $request)
     {
-        $me = auth()->id();
+        $me = Auth::id();
         $canApprove = $this->canApprove();
-        $isAdmin = auth()->user()->hasRole('Admin');
+        $isAdmin = self::me()->hasRole('Admin');
         $status = $request->input('status', 'menunggu');
 
         $query = TindakanHargaPengajuan::query()
@@ -367,7 +383,7 @@ class HargaTindakanController extends Controller
                     if (!$p || $p->status !== 'menunggu') {
                         throw new \DomainException('sudah diproses');
                     }
-                    if ((int) $p->diajukan_by === (int) auth()->id() && !auth()->user()->hasRole('Admin')) {
+                    if ((int) $p->diajukan_by === (int) Auth::id() && !self::me()->hasRole('Admin')) {
                         throw new \DomainException('tidak bisa menyetujui pengajuan sendiri');
                     }
                     $tindakan = Tindakan::lockForUpdate()->findOrFail($p->tindakan_id);
@@ -376,7 +392,7 @@ class HargaTindakanController extends Controller
                         $p->{$f . '_lama'} = $v;
                     }
                     $p->status = 'disetujui';
-                    $p->disetujui_by = auth()->id();
+                    $p->disetujui_by = Auth::id();
                     $p->disetujui_at = now();
                     $p->save();
 
@@ -399,7 +415,7 @@ class HargaTindakanController extends Controller
         ], $disetujui ? 200 : 422);
     }
 
-    public function reject(Request $request, $id)
+    public function reject(Request $request, string|int $id)
     {
         $data = $request->validate(['alasan' => 'required|string|max:500'], ['alasan.required' => 'Alasan penolakan wajib diisi.']);
 
@@ -408,20 +424,20 @@ class HargaTindakanController extends Controller
             if ($p->status !== 'menunggu') {
                 return response()->json(['success' => false, 'message' => 'Pengajuan ini sudah diproses.'], 422);
             }
-            $p->update(['status' => 'ditolak', 'ditolak_by' => auth()->id(), 'ditolak_at' => now(), 'alasan_tolak' => trim($data['alasan'])]);
+            $p->update(['status' => 'ditolak', 'ditolak_by' => Auth::id(), 'ditolak_at' => now(), 'alasan_tolak' => trim($data['alasan'])]);
 
             return response()->json(['success' => true, 'message' => 'Pengajuan ditolak. Harga paket tidak berubah.']);
         });
     }
 
-    public function batal($id)
+    public function batal(string|int $id)
     {
         return DB::transaction(function () use ($id) {
             $p = TindakanHargaPengajuan::lockForUpdate()->findOrFail($id);
             if ($p->status !== 'menunggu') {
                 return response()->json(['success' => false, 'message' => 'Pengajuan ini sudah diproses.'], 422);
             }
-            if ((int) $p->diajukan_by !== (int) auth()->id() && !auth()->user()->hasRole('Admin')) {
+            if ((int) $p->diajukan_by !== (int) Auth::id() && !self::me()->hasRole('Admin')) {
                 return response()->json(['success' => false, 'message' => 'Hanya pengaju atau Admin yang bisa membatalkan.'], 403);
             }
             $p->update(['status' => 'dibatalkan', 'dibatalkan_at' => now()]);
@@ -433,7 +449,7 @@ class HargaTindakanController extends Controller
     /**
      * Price history of one paket.
      */
-    public function riwayat($tindakanId)
+    public function riwayat(string|int $tindakanId)
     {
         $tindakan = Tindakan::findOrFail($tindakanId);
         $rows = TindakanHargaPengajuan::with(['pengaju:id,name', 'penyetuju:id,name', 'penolak:id,name'])
