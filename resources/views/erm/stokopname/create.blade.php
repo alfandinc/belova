@@ -42,7 +42,7 @@
                                         </div>
                                         <div class="form-group mr-2" style="flex:1;">
                                                 <label class="sr-only" for="temuan_keterangan">Catatan</label>
-                                                <input type="text" class="form-control form-control-sm" id="temuan_keterangan" placeholder="Catatan..." style="width:100%;">
+                                                <input type="text" class="form-control form-control-sm" id="temuan_keterangan" placeholder="Catatan..." maxlength="150" style="width:100%;">
                                         </div>
                                         <button type="button" id="temuanAddBtn" class="btn btn-primary btn-sm"><i class="fa fa-plus"></i> Tambah</button>
                                 </form>
@@ -132,6 +132,9 @@
                     } elseif ($status === 'proses') {
                         $headerClass = 'bg-warning';
                         $textClass = 'text-dark';
+                    } elseif ($status === 'batal') {
+                        $headerClass = 'bg-secondary';
+                        $textClass = 'text-white';
                     } elseif ($status === 'draft') {
                         $headerClass = 'bg-primary';
                         $textClass = 'text-white';
@@ -184,6 +187,13 @@
                             </div>
                         </div>
                         <div class="col stat-col small-stat-wide">
+                            {{-- stok_fisik still empty; Submit Stok is blocked until it is 0 --}}
+                            <div class="stat-box stat-warning" id="belumDihitungBox" title="Obat yang stok fisiknya belum diisi. Submit Stok baru bisa setelah semuanya diisi.">
+                                <div class="stat-label">Belum Dihitung</div>
+                                <div class="stat-value"><span id="belumDihitungText">{{ $totals['belumDihitung'] }}</span> <small class="text-muted">/ {{ $totalItems }}</small></div>
+                            </div>
+                        </div>
+                        <div class="col stat-col small-stat-wide">
                             <div class="stat-box stat-danger" id="itemsWithSelisihBox">
                                 <div class="stat-label" title="Item yang masih punya selisih belum terjelaskan temuan">Items Belum Terjelaskan</div>
                                 <div class="stat-value"><span id="itemsWithSelisihText">{{ $itemsWithSelisih }}</span></div>
@@ -191,11 +201,11 @@
                         </div>
                     </div>
 
-                    @if($stokOpname->status !== 'selesai')
+                    @if(!in_array($stokOpname->status, ['selesai', 'batal'], true))
                     <div class="alert alert-warning mt-2 mb-0 py-2" style="font-size:13px;">
                         <i class="fa fa-exclamation-triangle"></i>
                         <strong>Stok sistem</strong> diambil saat <strong>Generate Items</strong>. Selama stok opname berjalan, jangan ada transaksi di gudang ini
-                        (penjualan, resep, mutasi, penerimaan faktur, retur) sampai <strong>Submit Stok</strong>. Saat Submit, stok diset ke stok fisik.
+                        (penjualan, resep, mutasi, penerimaan faktur, retur) sampai <strong>Submit Stok</strong>. Bila tetap ada transaksi, saat Submit Anda akan diminta memilih: terapkan selisihnya ke stok sekarang, atau set stok ke stok fisik.
                     </div>
                     @endif
                 </div>
@@ -208,7 +218,7 @@
                     <div class="d-flex align-items-center mb-2">
                         @if($items->count() == 0)
                         <button type="button" class="btn btn-info mr-2" id="generateItemsBtn" 
-                            {{ $stokOpname->status === 'selesai' ? 'disabled' : '' }}>
+                            {{ in_array($stokOpname->status, ['selesai', 'batal'], true) ? 'disabled' : '' }}>
                             <i class="fa fa-magic"></i> Generate Items
                         </button>
                         @endif
@@ -219,10 +229,10 @@
                         </button>
                         @php
                             $hasItems = $items->count() > 0;
-                            $isCompleted = $stokOpname->status === 'selesai';
+                            $isCompleted = in_array($stokOpname->status, ['selesai', 'batal'], true);
                             $updateStockEnabled = $hasItems && !$isCompleted;
                         @endphp
-                        @if($stokOpname->status !== 'selesai')
+                        @if(!in_array($stokOpname->status, ['selesai', 'batal'], true))
                         <button type="button" class="btn btn-success mr-2" id="updateStockBtn" 
                             {{ !$updateStockEnabled ? 'disabled' : '' }}
                             @if($stokOpname->status === 'draft') style="display:none;" @endif>
@@ -361,8 +371,9 @@
                     <label class="mr-2 ml-2" for="filterStokFisik" style="font-size:0.85rem; color:#6c757d; text-transform:none;">Stok Fisik:</label>
                     <select id="filterStokFisik" class="form-control form-control-sm mr-2">
                         <option value="">All</option>
-                        <option value="zero">Not Opnamed (0)</option>
-                        <option value="nonzero">Opnamed (&gt;0)</option>
+                        <option value="kosong">Belum dihitung</option>
+                        <option value="zero">Stok fisik 0</option>
+                        <option value="nonzero">Stok fisik &gt; 0</option>
                     </select>
 
                     {{-- Sync button commented out --}}
@@ -475,7 +486,7 @@ $(function () {
     $('#stokOpnameItemsTable').addClass('text-truncate');
 
     // Global flag: whether this stok opname is completed
-    var isCompleted = '{{ $stokOpname->status }}' === 'selesai';
+    var isCompleted = ['selesai', 'batal'].indexOf('{{ $stokOpname->status }}') !== -1;
 
     // Check button states on page load
     checkButtonStates();
@@ -507,6 +518,7 @@ $(function () {
             $('#selisihNilaiText').text(rpSigned(res.selisihNilai));
             $('#sisaNilaiText').text(rpSigned(res.sisaNilai));
             if (typeof res.itemsWithSelisih !== 'undefined') $('#itemsWithSelisihText').text(res.itemsWithSelisih);
+            if (typeof res.belumDihitung !== 'undefined') $('#belumDihitungText').text(res.belumDihitung);
             if (typeof res.totalItems !== 'undefined') $('#totalItemsText').text(res.totalItems);
         }).always(function() {
             if (btn.length) {
@@ -540,6 +552,10 @@ $(function () {
                     var jenis = row.jenis || row.obat_jenis || '';
                     var metode = row.metode_bayar || row.obat_metode_bayar || '';
                     var badges = '';
+                    // Inactive obat is generated only while it still has stok
+                    if (row.obat_aktif !== undefined && row.obat_aktif !== null && parseInt(row.obat_aktif) === 0) {
+                        badges += '<span class="badge badge-secondary mr-1" title="Obat sudah dinonaktifkan, tapi stoknya masih ada">nonaktif</span>';
+                    }
                     if (kategori) {
                         var c = colorFromString(kategori, {saturation:60, lightness:50});
                         badges += '<span class="badge mr-1 badge-kategori" style="background:' + c.css + '; color:' + readableTextColorFromLightness(c.l) + ';">'+esc(kategori)+'</span>';
@@ -558,7 +574,11 @@ $(function () {
             { data: 'stok_sistem', name: 'stok_sistem', className: 'text-right', render: function(data, type, row) { return formatQty(data); } },
             { data: 'stok_fisik', name: 'stok_fisik', className: 'text-right', render: function(data, type, row) {
                     var disabledAttr = isCompleted ? 'disabled' : '';
-                    return `<input type="number" step="0.01" min="0" class="form-control form-control-sm stok-fisik-input" data-id="${row.id}" value="${formatQty(data)}" style="width:110px; text-align:right;" ${disabledAttr}>`;
+                    // NULL = belum dihitung: empty yellow input; 0 has to be typed on purpose
+                    var kosong = (data === null || data === undefined || data === '');
+                    var value = kosong ? '' : formatQty(data);
+                    var style = 'width:110px; text-align:right;' + (kosong ? ' background:#fff3cd; border-color:#ffc107;' : '');
+                    return `<input type="number" step="0.01" min="0" class="form-control form-control-sm stok-fisik-input" data-id="${row.id}" value="${value}" placeholder="belum" title="${kosong ? 'Belum dihitung. Ketik 0 bila memang tidak ada.' : ''}" style="${style}" ${disabledAttr}>`;
                 }
             },
             // total_temuan is the net offset (−qty for "fisik lebih"); shown as the explained amount in the selisih direction
@@ -568,7 +588,10 @@ $(function () {
                 } },
             // data = sisa belum terjelaskan (selisih + net temuan); the main number is the raw fisik − sistem
             { data: 'selisih', name: 'selisih', className: 'text-right', render: function(data, type, row) {
-                    var raw = (parseFloat(row.stok_fisik) || 0) - (parseFloat(row.stok_sistem) || 0);
+                    if (row.stok_fisik === null || row.stok_fisik === undefined || row.stok_fisik === '') {
+                        return '<span class="badge badge-warning text-dark">belum dihitung</span>';
+                    }
+                    var raw =(parseFloat(row.stok_fisik) || 0) - (parseFloat(row.stok_sistem) || 0);
                     var sisa = parseFloat(data) || 0;
                     var hasTemuan = Math.abs((parseFloat(row.total_temuan) || 0)) > 1e-9;
                     var icon = Math.abs(sisa) > 1e-9
@@ -581,7 +604,7 @@ $(function () {
                     return html;
                 } },
             { data: 'nearest_exp', name: 'nearest_exp', className: 'text-center', render: function(data, type, row) { return data || '-'; } },
-            { data: null, name: 'nilai_stok', orderable: false, searchable: false, className: 'text-right', render: function(data, type, row) { var hpp = parseFloat(row.hpp_obat) || 0; var stokFisik = parseFloat(row.stok_fisik) || 0; var nilai = hpp * stokFisik; return 'Rp ' + nilai.toLocaleString('id-ID'); } },
+            { data: null, name: 'nilai_stok', orderable: false, searchable: false, className: 'text-right', render: function(data, type, row) { if (row.stok_fisik === null || row.stok_fisik === undefined || row.stok_fisik === '') return '<span class="text-muted">-</span>'; var hpp = parseFloat(row.hpp_obat) || 0; var stokFisik = parseFloat(row.stok_fisik) || 0; var nilai = hpp * stokFisik; return 'Rp ' + nilai.toLocaleString('id-ID'); } },
                 { data: null, orderable: false, searchable: false, className: 'text-center', render: function(data, type, row) {
                         var id = row.id || '';
                         var obatId = row.obat_id || row.obatId || '';
@@ -610,6 +633,9 @@ $(function () {
             if (ajaxJson && typeof ajaxJson.items_with_selisih !== 'undefined') {
                 $('#itemsWithSelisihText').text(ajaxJson.items_with_selisih);
             }
+            if (ajaxJson && typeof ajaxJson.belum_dihitung !== 'undefined') {
+                $('#belumDihitungText').text(ajaxJson.belum_dihitung);
+            }
         } catch (e) {
             console.error('updateCounts error', e);
         }
@@ -635,8 +661,9 @@ $(function () {
                         // Update the row data; re-rendering the row refreshes Selisih and Nilai Stok cells
                         var rowIdx = table.row(input.closest('tr')).index();
                         var rowData = table.row(rowIdx).data();
-                        rowData.stok_fisik = parseFloat(res.stok_fisik);
-                        rowData.selisih = parseFloat(res.selisih);
+                        // null = cleared back to "belum dihitung"
+                        rowData.stok_fisik = res.stok_fisik === null ? null : parseFloat(res.stok_fisik);
+                        rowData.selisih = res.selisih === null ? null : parseFloat(res.selisih);
                         table.row(rowIdx).data(rowData);
                         var newInput = $(table.cell(rowIdx, 4).node()).find('.stok-fisik-input');
                         newInput.addClass('is-valid');
@@ -920,6 +947,11 @@ $(function () {
 
         var btn = $(this);
         btn.prop('disabled', true);
+        kirimTemuan(btn, itemId, qty, keterangan, 0);
+    });
+
+    // konfirmasi=1 after the user accepted the "temuan melebihi selisih" warning (server answers 409 first)
+    function kirimTemuan(btn, itemId, qty, keterangan, konfirmasi) {
         $.ajax({
             url: '/erm/stokopname-item/' + itemId + '/add-temuan-record',
             method: 'POST',
@@ -927,6 +959,7 @@ $(function () {
                     qty: qty,
                     jenis: $('#temuan_jenis').val(),
                     keterangan: keterangan,
+                    konfirmasi: konfirmasi,
                     _token: '{{ csrf_token() }}'
                 },
             success: function(res) {
@@ -961,6 +994,23 @@ $(function () {
                 }
             },
             error: function(xhr) {
+                if (xhr.status === 409 && xhr.responseJSON && xhr.responseJSON.needs_confirm) {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Temuan melebihi selisih',
+                        text: xhr.responseJSON.message,
+                        showCancelButton: true,
+                        confirmButtonText: 'Tetap simpan',
+                        cancelButtonText: 'Periksa lagi',
+                        confirmButtonColor: '#d33'
+                    }).then(function(r) {
+                        if (r.value) {
+                            btn.prop('disabled', true);
+                            kirimTemuan(btn, itemId, qty, keterangan, 1);
+                        }
+                    });
+                    return;
+                }
                 var msg = 'Gagal menyimpan temuan';
                 if (xhr.responseJSON && xhr.responseJSON.message) msg = xhr.responseJSON.message;
                 Swal.fire({ icon: 'error', title: msg, timer: 1500, showConfirmButton: false });
@@ -969,7 +1019,7 @@ $(function () {
                 btn.prop('disabled', false);
             }
         });
-    });
+    }
 
     function deleteTemuanHandler(e) {
         var btn = $(this);
@@ -1100,26 +1150,93 @@ $(function () {
         var checkReq = $.get("{{ route('erm.stokopname.submitCheck', $stokOpname->id) }}");
         checkReq.always(function() {
         var berubah = (checkReq.responseJSON && checkReq.responseJSON.berubah) || [];
+        var cek = checkReq.responseJSON || {};
+        // Step 1: uncounted items. Show them and ask: "Jadikan 0" (stok emptied at Submit) or fill them first.
+        // Resolves with the number confirmed to be zeroed (0 = none), or null to stop.
+        var langkahAwal = Promise.resolve(0);
+        if (checkReq.status === 200 && cek.belum_dihitung > 0) {
+            var contoh = cek.belum_dihitung_contoh || [];
+            var rowsBelum = contoh.map(function(n) {
+                return '<tr><td>' + esc(n.nama) + '</td><td class="text-right">' + formatQty(n.stok_sistem) + (n.satuan ? ' <small class="text-muted">' + esc(n.satuan) + '</small>' : '') + '</td><td class="text-right"><strong>0</strong></td></tr>';
+            }).join('');
+            var lainnya = cek.belum_dihitung > contoh.length
+                ? '<div><small>... dan ' + (cek.belum_dihitung - contoh.length) + ' obat lainnya (lihat dengan filter Stok Fisik: "Belum dihitung")</small></div>' : '';
+            var nilaiBelum = Math.round(parseFloat(cek.nilai_belum_dihitung) || 0).toLocaleString('id-ID');
+            langkahAwal = Swal.fire({
+                type: 'warning',
+                icon: 'warning',
+                width: 750,
+                title: cek.belum_dihitung + ' obat belum dihitung',
+                html: '<div class="text-left" style="font-size:13px;">'
+                    + 'Stok fisik obat berikut masih kosong. Jika <strong>dijadikan 0</strong>, stoknya akan <strong>dikosongkan</strong> saat Submit '
+                    + '(nilai stok sistem ± Rp ' + nilaiBelum + '). Pilih <strong>Isi dulu</strong> bila obatnya ada tapi belum sempat dihitung.'
+                    + '<div style="max-height:260px; overflow:auto;" class="mt-2"><table class="table table-sm table-bordered mb-1" style="background:#fff;">'
+                    + '<thead><tr><th>Obat</th><th class="text-right">Stok Sistem</th><th class="text-right">Dijadikan</th></tr></thead><tbody>' + rowsBelum + '</tbody></table></div>'
+                    + lainnya + '</div>',
+                input: 'checkbox',
+                inputValue: 0,
+                inputPlaceholder: 'Saya yakin obat-obat ini memang tidak ada, jadikan 0',
+                inputValidator: function(v) { return !v && 'Centang dulu konfirmasinya, atau pilih Isi dulu.'; },
+                showCancelButton: true,
+                confirmButtonText: 'Jadikan 0 & lanjut Submit',
+                cancelButtonText: 'Isi dulu',
+                confirmButtonColor: '#d33'
+            }).then(function(r) {
+                if (r.value) return cek.belum_dihitung;
+                if (r.dismiss === 'cancel' || r.dismiss === Swal.DismissReason.cancel) {
+                    $('#filterStokFisik').val('kosong');
+                    table.ajax.reload();
+                }
+                return null;
+            });
+        }
+        langkahAwal.then(function(nolkanJumlah) {
+        if (nolkanJumlah === null) return;
         var warningHtml = '';
+        var nolkanHtml = nolkanJumlah > 0
+            ? '<div class="alert alert-danger text-left" style="font-size:13px;"><strong>' + nolkanJumlah
+                + ' obat belum dihitung</strong> akan dijadikan 0 dan stoknya dikosongkan.</div>'
+            : '';
+        // Kartu stok is dated at Submit time; the periode is written in its keterangan
+        var periodeHtml = cek.beda_periode
+            ? '<div class="alert alert-warning text-left" style="font-size:13px;">Opname ini periode <strong>' + esc(cek.periode)
+                + '</strong>, tetapi di-Submit di bulan <strong>' + esc(cek.bulan_submit) + '</strong>. Penyesuaian stok akan tercatat di kartu stok '
+                + 'pada tanggal Submit (bulan ' + esc(cek.bulan_submit) + '), dengan keterangan periode dan tanggal opname.</div>'
+            : '';
         if (checkReq.status !== 200) {
             warningHtml = '<div class="alert alert-warning text-left">Pengecekan perubahan stok gagal dijalankan. Pastikan tidak ada transaksi di gudang ini sejak Generate Items.</div>';
         } else if (berubah.length) {
             var rows = berubah.slice(0, 15).map(function(b) {
                 return '<tr><td>' + $('<div>').text(b.nama + (b.batch ? ' (' + b.batch + ')' : '')).html() + '</td>'
                     + '<td class="text-right">' + formatQty(b.stok_sistem) + '</td>'
-                    + '<td class="text-right">' + formatQty(b.stok_sekarang) + '</td></tr>';
+                    + '<td class="text-right">' + formatQty(b.stok_sekarang) + '</td>'
+                    + '<td class="text-right">' + formatQty(b.stok_fisik) + '</td>'
+                    + '<td class="text-right"><strong>' + formatQty(b.hasil_selisih) + '</strong></td>'
+                    + '<td class="text-right">' + formatQty(b.hasil_fisik) + '</td></tr>';
             }).join('');
             var more = berubah.length > 15 ? '<div><small>... dan ' + (berubah.length - 15) + ' item lainnya</small></div>' : '';
             warningHtml = '<div class="alert alert-danger text-left" style="font-size:13px;">'
                 + '<strong>Peringatan:</strong> ' + berubah.length + ' item stoknya sudah berubah sejak Generate Items (ada transaksi selama stok opname). '
-                + 'Jika tetap disubmit, stok item tersebut diset ke stok fisik dan transaksi tadi ikut tertimpa.'
-                + '<table class="table table-sm table-bordered mt-2 mb-1" style="background:#fff;"><thead><tr><th>Obat</th><th>Stok Sistem (Generate)</th><th>Stok Sekarang</th></tr></thead><tbody>' + rows + '</tbody></table>'
+                + 'Pilih cara menerapkan hasil opname untuk item tersebut:'
+                + '<div class="mt-2">'
+                + '<label class="d-block mb-1" style="font-weight:normal;cursor:pointer;"><input type="radio" name="submit_mode" value="selisih" checked> '
+                + '<strong>Terapkan selisih</strong> (disarankan): stok sekarang + (fisik − sistem). Transaksi selama opname tetap terhitung. Pilih ini bila fisik dihitung <u>sebelum</u> transaksi tersebut.</label>'
+                + '<label class="d-block mb-0" style="font-weight:normal;cursor:pointer;"><input type="radio" name="submit_mode" value="fisik"> '
+                + '<strong>Set ke stok fisik</strong>: stok diset sama dengan hasil hitung. Pilih ini bila fisik dihitung <u>sesudah</u> transaksi tersebut.</label>'
+                + '</div>'
+                + '<table class="table table-sm table-bordered mt-2 mb-1" style="background:#fff;"><thead><tr><th>Obat</th><th>Sistem (Generate)</th><th>Sekarang</th><th>Fisik</th><th>Hasil: Terapkan selisih</th><th>Hasil: Set ke fisik</th></tr></thead><tbody>' + rows + '</tbody></table>'
                 + more + '</div>';
+        }
+        // Opnames generated before "belum dihitung" existed were pre-filled with 0
+        if (cek.nol_padahal_ada > 0) {
+            warningHtml += '<div class="alert alert-warning text-left" style="font-size:13px;">'
+                + '<strong>' + cek.nol_padahal_ada + ' obat</strong> stok fisiknya 0 padahal stok sistemnya ada. '
+                + 'Stok obat tersebut akan dikosongkan. Pastikan memang tidak ada (cek dengan filter Stok Fisik: "Stok fisik 0").</div>';
         }
         Swal.fire({
             title: 'Update Stock dari Hasil Opname?',
-            width: berubah.length ? 700 : undefined,
-            html: warningHtml + `
+            width: berubah.length ? 850 : undefined,
+            html: nolkanHtml + periodeHtml + warningHtml + `
                 <p>Ini akan mengupdate stok fisik di gudang berdasarkan hasil stok opname menggunakan StokService:</p>
                 <ul style="text-align: left; margin: 10px 20px;">
                     <li><strong>Surplus</strong> (stok fisik > sistem): Akan menambah stok</li>
@@ -1133,8 +1250,14 @@ $(function () {
             confirmButtonText: 'Ya, Update Stock!',
             cancelButtonText: 'Batal',
             confirmButtonColor: '#28a745',
+            // The chosen mode becomes result.value (radios only exist when stok changed since Generate)
+            preConfirm: () => {
+                var picked = document.querySelector('input[name="submit_mode"]:checked');
+                return picked ? picked.value : 'selisih';
+            },
         }).then((result) => {
             if (result.value) {
+                var submitMode = result.value;
                 var btn = $('#updateStockBtn');
                 btn.prop('disabled', true);
                 blockUI();
@@ -1148,7 +1271,11 @@ $(function () {
                 });
                 
                 $.post("{{ route('erm.stokopname.updateStockFromOpname', $stokOpname->id) }}", {
-                    _token: '{{ csrf_token() }}'
+                    _token: '{{ csrf_token() }}',
+                    mode: submitMode,
+                    // server re-checks the count; a different number (list changed meanwhile) is refused
+                    nolkan_belum_dihitung: nolkanJumlah > 0 ? 1 : 0,
+                    nolkan_jumlah: nolkanJumlah
                 })
                 .done(function(res) {
                     if (res.success) {
@@ -1199,6 +1326,16 @@ $(function () {
                         }).then(function() { location.reload(); });
                         return;
                     }
+                    // 409 with belum_dihitung: the uncounted list changed after the confirmation; nothing applied
+                    if (xhr.status === 409 && xhr.responseJSON && typeof xhr.responseJSON.belum_dihitung !== 'undefined') {
+                        Swal.fire({
+                            icon: 'warning',
+                            title: 'Daftar belum dihitung berubah, stok tidak berubah',
+                            text: xhr.responseJSON.message + ' Klik Submit Stok lagi untuk melihat daftar terbaru.'
+                        });
+                        table.ajax.reload(null, false);
+                        return;
+                    }
                     // Server answered with an error: nothing was changed (the whole submit is one transaction), safe to retry
                     Swal.fire({
                         icon: 'error',
@@ -1213,6 +1350,7 @@ $(function () {
                 });
             }
         });
+        }); // langkahAwal.then
         });
     });
 

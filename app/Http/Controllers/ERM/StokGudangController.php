@@ -103,7 +103,8 @@ class StokGudangController extends Controller {
             ->values();
 
         // Provide recent stok opname records for download modal
-        $stokOpnames = StokOpname::with('gudang')->orderBy('tanggal_opname', 'desc')->get();
+        // Only finished opnames: a draft / proses / batal one has incomplete or never-applied counts
+        $stokOpnames = StokOpname::with('gudang')->where('status', 'selesai')->orderBy('tanggal_opname', 'desc')->get();
 
         $metodePemusnahan = \App\Services\ERM\GudangExpiredService::METODE_PEMUSNAHAN;
         // Quantities change only through Penyesuaian Stok documents (same roles as that menu, masuk included)
@@ -588,10 +589,17 @@ class StokGudangController extends Controller {
             if ($stokOpnameId) {
                 $opnameQuery->where('stok_opname_id', $stokOpnameId);
             } else {
-                $opnameQuery->whereHas('stokOpname', function($q) use ($gudangId, $start, $end) {
-                    if ($gudangId) $q->where('gudang_id', $gudangId);
-                    $q->whereBetween('tanggal_opname', [$start->format('Y-m-d'), $end->format('Y-m-d')]);
-                });
+                // Only finished opnames, and the latest one per gudang: summing every opname in the range
+                // counted a re-opname twice and included draft / batal counts
+                $opnameIds = StokOpname::where('status', 'selesai')
+                    ->when($gudangId, fn ($q) => $q->where('gudang_id', $gudangId))
+                    ->whereBetween('tanggal_opname', [$start->format('Y-m-d'), $end->format('Y-m-d')])
+                    ->orderByDesc('tanggal_opname')
+                    ->orderByDesc('id')
+                    ->get(['id', 'gudang_id'])
+                    ->unique('gudang_id')
+                    ->pluck('id');
+                $opnameQuery->whereIn('stok_opname_id', $opnameIds);
             }
 
             $opnameQuery->groupBy('obat_id');

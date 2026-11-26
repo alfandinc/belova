@@ -35,7 +35,8 @@ class StokOpnameItem extends Model
     }
     public function obat()
     {
-        return $this->belongsTo(Obat::class, 'obat_id');
+        // Include inactive obat: an obat turned off during / after the opname keeps its nama and hpp here
+        return $this->belongsTo(Obat::class, 'obat_id')->withInactive();
     }
 
     public function obatStokGudang()

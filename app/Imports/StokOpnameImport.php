@@ -20,6 +20,8 @@ class StokOpnameImport implements ToCollection, WithHeadingRow
     public $imported = 0;
     public $skipped = 0;
     public $skippedRows = [];
+    // "Nama (batch): file X, sistem Y" for rows whose stok_sistem in the file differs from the gudang stok
+    public $sistemBeda = [];
 
     protected function skip($row, $alasan)
     {
@@ -34,9 +36,9 @@ class StokOpnameImport implements ToCollection, WithHeadingRow
 
         foreach ($rows as $row) {
             Log::info('Import row', $row->toArray());
-            // Required: obat_id and stok_sistem and stok_fisik (stok_fisik can be zero)
-            if (!isset($row['obat_id']) || (!$row->has('stok_sistem') && !isset($row['stok_sistem'])) || (!$row->has('stok_fisik') && !isset($row['stok_fisik']))) {
-                $this->skip($row, 'kolom obat_id / stok_sistem / stok_fisik tidak ada');
+            // Required: obat_id and stok_fisik (stok_fisik can be zero). stok_sistem in the file is info only
+            if (!isset($row['obat_id']) || (!$row->has('stok_fisik') && !isset($row['stok_fisik']))) {
+                $this->skip($row, 'kolom obat_id / stok_fisik tidak ada');
                 continue;
             }
             // Skip if obat_id does not exist in erm_obat
@@ -49,9 +51,7 @@ class StokOpnameImport implements ToCollection, WithHeadingRow
                 $this->skip($row, 'stok_fisik kosong / bukan angka');
                 continue;
             }
-            $stokSistem = is_numeric($row['stok_sistem']) ? $row['stok_sistem'] + 0 : 0;
             $stokFisik = $row['stok_fisik'] + 0;
-            $selisih = $stokFisik - $stokSistem;
 
             // Try to find matching ObatStokGudang by obat_id + batch for the stok opname's gudang
             $batchName = isset($row['batch']) ? trim($row['batch']) : null;
@@ -75,6 +75,16 @@ class StokOpnameImport implements ToCollection, WithHeadingRow
                 $this->skip($row, 'batch tidak ditemukan di gudang ini');
                 continue;
             }
+
+            // stok sistem = the batch stok now (a file can be old or edited); the file value only warns
+            $stokSistem = (float) $stokGudang->stok;
+            $stokSistemFile = $row['stok_sistem'] ?? null;
+            if (is_numeric($stokSistemFile) && abs((float) $stokSistemFile - $stokSistem) >= 0.01) {
+                $nama = $row['nama_obat'] ?? ('Obat #' . $row['obat_id']);
+                $this->sistemBeda[] = $nama . ($batchName ? ' (' . $batchName . ')' : '')
+                    . ': file ' . ((float) $stokSistemFile + 0) . ', sistem ' . ($stokSistem + 0);
+            }
+            $selisih = $stokFisik - $stokSistem;
 
             // Per-obat (generated) items and per-batch (imported) items for the same obat would both be applied
             $adaItemPerObat = StokOpnameItem::where('stok_opname_id', $this->stokOpnameId)

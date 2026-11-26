@@ -273,10 +273,13 @@ $(function () {
       return;
     }
 
+    // Escaped text with line breaks kept (bulk results list one failed temuan per line)
+    var html = $('<div>').text(text || '').html().replace(/\n/g, '<br>');
     Swal.fire({
+      type: icon,
       icon: icon,
       title: title,
-      text: text || '',
+      html: '<div style="text-align:left; font-size:14px;">' + html + '</div>',
       timer: icon === 'success' ? 1800 : undefined,
       showConfirmButton: icon !== 'success'
     });
@@ -377,6 +380,8 @@ $(function () {
             return '<span class="badge badge-warning text-dark">Proses</span>';
           } else if (data === 'selesai') {
             return '<span class="badge badge-success">Selesai</span>';
+          } else if (data === 'batal') {
+            return '<span class="badge badge-secondary">Batal</span>';
           } else {
             return data;
           }
@@ -388,31 +393,82 @@ $(function () {
         orderable: false,
         searchable: false,
         render: function(data, type, row) {
-          if (data > 0) {
-            return data + ' Obat Selisih <i class="fa fa-exclamation-triangle text-warning blink-warning" title="Ada selisih"></i>';
-          } else {
-            return data + ' Obat Selisih <i class="fa fa-check text-success" title="Tidak ada selisih"></i>';
+          var html = data > 0
+            ? data + ' Obat Selisih <i class="fa fa-exclamation-triangle text-warning blink-warning" title="Ada selisih"></i>'
+            : data + ' Obat Selisih <i class="fa fa-check text-success" title="Tidak ada selisih"></i>';
+          // stok fisik still empty (Submit Stok is blocked until all are filled)
+          if (row.belum_dihitung > 0) {
+            html += '<div><span class="badge badge-warning text-dark">' + row.belum_dihitung + ' belum dihitung</span></div>';
           }
+          return html;
         }
       },
       {data: 'aksi', name: 'aksi', orderable: false, searchable: false},
     ]
     });
 
-    $('#stokOpnameForm').submit(function(e){
-        e.preventDefault();
+    // konfirmasiUlang = the user accepted creating a second opname for a periode that is already selesai
+    function simpanStokOpname(formData, konfirmasiUlang) {
         $.ajax({
             url: "{{ route('erm.stokopname.store') }}",
             method: 'POST',
-            data: $(this).serialize(),
+            data: formData + (konfirmasiUlang ? '&konfirmasi_ulang=1' : ''),
             headers: {'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')},
             success: function(res){
                 $('#stokOpnameModal').modal('hide');
                 table.ajax.reload();
             },
             error: function(xhr){
-                alert('Gagal menyimpan data!');
+                var res = xhr.responseJSON || {};
+                var hasSwal = typeof Swal !== 'undefined';
+                if (xhr.status === 409 && res.needs_confirm) {
+                    var ok = hasSwal
+                        ? Swal.fire({ icon: 'warning', title: 'Opname ulang?', text: res.message, showCancelButton: true, confirmButtonText: 'Ya, buat opname ulang', cancelButtonText: 'Batal' }).then(function(r) { return !!r.value; })
+                        : Promise.resolve(window.confirm(res.message));
+                    ok.then(function(yes) { if (yes) simpanStokOpname(formData, true); });
+                    return;
+                }
+                if (xhr.status === 422 && res.url) {
+                    if (hasSwal) {
+                        Swal.fire({ icon: 'error', title: 'Masih ada opname aktif', text: res.message, showCancelButton: true, confirmButtonText: 'Buka opname tersebut', cancelButtonText: 'Tutup' })
+                            .then(function(r) { if (r.value) window.location.href = res.url; });
+                    } else if (window.confirm(res.message + '\n\nBuka opname tersebut?')) {
+                        window.location.href = res.url;
+                    }
+                    return;
+                }
+                var msg = res.message || 'Gagal menyimpan data!';
+                if (hasSwal) { Swal.fire({ icon: 'error', title: 'Gagal', text: msg }); } else { alert(msg); }
             }
+        });
+    }
+
+    $('#stokOpnameForm').submit(function(e){
+        e.preventDefault();
+        simpanStokOpname($(this).serialize(), false);
+    });
+
+    // Cancel an opname that was never submitted (stok is untouched); final, it cannot be reopened
+    var updateStatusUrlTemplate = "{{ url('erm/stokopname') }}/__ID__/update-status";
+    $(document).on('click', '.btn-batal-opname', function() {
+        var id = $(this).data('id');
+        var text = 'Stok tidak berubah karena opname ini belum di-Submit. Opname yang dibatalkan tidak bisa dibuka lagi.';
+        var ask = typeof Swal !== 'undefined'
+            ? Swal.fire({ icon: 'warning', title: 'Batalkan stok opname ini?', text: text, showCancelButton: true, confirmButtonText: 'Ya, batalkan', cancelButtonText: 'Tidak', confirmButtonColor: '#d33' }).then(function(r) { return !!r.value; })
+            : Promise.resolve(window.confirm('Batalkan stok opname ini?\n' + text));
+        ask.then(function(yes) {
+            if (!yes) return;
+            $.ajax({
+                url: updateStatusUrlTemplate.replace('__ID__', id),
+                method: 'POST',
+                data: { status: 'batal' },
+                headers: {'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')},
+                success: function() { table.ajax.reload(null, false); },
+                error: function(xhr) {
+                    var msg = (xhr.responseJSON && xhr.responseJSON.message) || 'Gagal membatalkan opname.';
+                    if (typeof Swal !== 'undefined') { Swal.fire({ icon: 'error', title: 'Gagal', text: msg }); } else { alert(msg); }
+                }
+            });
         });
     });
 
@@ -628,8 +684,18 @@ $(function () {
           success: function(res){
             if (res.success) {
               var ok = res.results.processed.length;
-              var fail = Object.keys(res.results.failed).length;
-              showTemuanNotification('success', 'Proses temuan selesai', 'Berhasil diproses: ' + ok + ', gagal: ' + fail + '.');
+              var failed = res.results.failed || {};
+              var failIds = Object.keys(failed);
+              var text = 'Berhasil diproses: ' + ok + ', gagal: ' + failIds.length + '.';
+              if (failIds.length) {
+                // Name the failed temuan (obat) with the server's reason
+                var namaById = {};
+                selectedRows.forEach(function(r) { namaById[String(r.id)] = r.obat; });
+                text += '\n\nGagal:\n' + failIds.map(function(id) {
+                  return '- ' + $('<textarea>').html(namaById[id] || ('Temuan #' + id)).text() + ': ' + failed[id];
+                }).join('\n');
+              }
+              showTemuanNotification(failIds.length ? 'warning' : 'success', 'Proses temuan selesai', text);
               temuanTable.ajax.reload();
               table.ajax.reload(null, false);
             } else {
@@ -713,7 +779,10 @@ $(function () {
           temuanTable.ajax.reload();
           table.ajax.reload(null, false);
         },
-        error: function(xhr){ alert('Gagal menghapus temuan'); }
+        error: function(xhr){
+          var msg = (xhr.responseJSON && xhr.responseJSON.message) || 'Gagal menghapus temuan.';
+          showTemuanNotification('error', 'Hapus temuan gagal', msg);
+        }
       });
     });
 });

@@ -2343,7 +2343,7 @@ Route::prefix('erm')->middleware('role:Lab|Admin')->group(function () {
 // AJAX route for riwayat tindakan detail modal (obat substitution)
 Route::get('/erm/riwayat-tindakan/{id}/detail', [App\Http\Controllers\ERM\TindakanController::class, 'getRiwayatDetail']);
 // AJAX: get batch list for a stok opname item (shows batch, stok, expiration)
-Route::get('/erm/stokopname-item/{itemId}/batches', [\App\Http\Controllers\ERM\StokOpnameController::class, 'getItemBatches'])->name('erm.stokopname.item.batches');
+Route::get('/erm/stokopname-item/{itemId}/batches', [\App\Http\Controllers\ERM\StokOpnameController::class, 'getItemBatches'])->middleware(['auth', 'role:Admin|Farmasi|Beautician|Lab'])->name('erm.stokopname.item.batches');
 // POST route for saving substituted obat
 Route::post('/erm/riwayat-tindakan/{id}/obat', [App\Http\Controllers\ERM\TindakanController::class, 'updateRiwayatObat']);
 

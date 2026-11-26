@@ -28,12 +28,7 @@ class StokOpnameResultsExport implements FromCollection, WithHeadings, WithMappi
             ->get();
 
         // Net temuan per item (computed, stored selisih of old records may be stale)
-        $this->netTemuan = DB::table('erm_stok_opname_temuan')
-            ->where('stok_opname_id', $this->stokOpnameId)
-            ->groupBy('stok_opname_item_id')
-            ->select('stok_opname_item_id', DB::raw("COALESCE(SUM(CASE WHEN jenis IN ('lebih','minus') THEN qty WHEN jenis IN ('kurang','plus') THEN -qty ELSE 0 END),0) as net"))
-            ->pluck('net', 'stok_opname_item_id')
-            ->all();
+        $this->netTemuan = \App\Models\ERM\StokOpnameTemuan::netPerItem('stok_opname_id', [$this->stokOpnameId]);
 
         return $items;
     }
@@ -42,6 +37,22 @@ class StokOpnameResultsExport implements FromCollection, WithHeadings, WithMappi
     {
         // sisa belum terjelaskan = (fisik - sistem) + net temuan; net temuan is the negative of the
         // explained part. Signs: + = fisik lebih, - = fisik kurang.
+        // Not counted yet (stok_fisik NULL): no selisih to show
+        if ($item->stok_fisik === null) {
+            return [
+                $item->obat ? $item->obat->nama : '-',
+                $item->obat ? ($item->obat->kode ?? '') : '',
+                $item->batch_name ?? '',
+                $item->expiration_date ?? '',
+                $item->stok_sistem ?? 0,
+                'Belum dihitung',
+                '',
+                '',
+                '',
+                $item->notes ?? '',
+            ];
+        }
+
         $selisih = (float) $item->stok_fisik - (float) $item->stok_sistem;
         $sisa = $selisih + (float) ($this->netTemuan[$item->id] ?? 0);
 
